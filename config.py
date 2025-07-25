@@ -104,7 +104,7 @@ COMPANIES = {
 DEFAULT_COMPANY = "housecall_md"
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "housecall_md"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+ACTIVE_COMPANY = "los_cerros"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
 
 # Function to get company configuration
 def get_company_config(company_key=None):
