@@ -72,24 +72,27 @@ if __name__ == "__main__":
     show_active_company()
     print()
     
-    # Check if user wants to change company
+    # Check command line arguments
     import sys
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--list-companies" or sys.argv[1] == "-l":
+    i = 1
+    while i < len(sys.argv):
+        if sys.argv[i] == "--list-companies" or sys.argv[i] == "-l":
             list_companies()
             sys.exit(0)
-        elif sys.argv[1] == "--set-company" or sys.argv[1] == "-s":
-            if len(sys.argv) > 2:
+        elif sys.argv[i] == "--set-company" or sys.argv[i] == "-s":
+            if i + 1 < len(sys.argv):
                 try:
-                    set_active_company(sys.argv[2])
+                    set_active_company(sys.argv[i + 1])
                     print()
+                    i += 2  # Skip the company key
+                    continue
                 except ValueError as e:
                     print(f"❌ {e}")
                     sys.exit(1)
             else:
                 print("❌ Please provide a company key. Use --list-companies to see options.")
                 sys.exit(1)
-        elif sys.argv[1] == "--help" or sys.argv[1] == "-h":
+        elif sys.argv[i] == "--help" or sys.argv[i] == "-h":
             print("DoctorAlliance PDF Processing Pipeline")
             print("=" * 50)
             print("Usage:")
@@ -103,27 +106,27 @@ if __name__ == "__main__":
             print("Available company keys: housecall_md, los_cerros, rocky_mountain")
             print("Date format: MM/DD/YYYY (e.g., 06/01/2024)")
             sys.exit(0)
-        elif sys.argv[1] == "--june":
+        elif sys.argv[i] == "--june":
             # Set June 2024 date range
             start_date = "06/01/2024"
             end_date = "06/30/2024"
             print(f"📅 Processing June 2024 documents: {start_date} to {end_date}")
-        elif sys.argv[1] == "--date":
-            if len(sys.argv) >= 4:
-                start_date = sys.argv[2]
-                end_date = sys.argv[3]
+            i += 1
+        elif sys.argv[i] == "--date":
+            if i + 2 < len(sys.argv):
+                start_date = sys.argv[i + 1]
+                end_date = sys.argv[i + 2]
                 print(f"📅 Processing documents from {start_date} to {end_date}")
+                i += 3  # Skip the date arguments
+                continue
             else:
                 print("❌ Please provide start and end dates. Format: MM/DD/YYYY")
                 sys.exit(1)
         else:
-            # Default behavior - no date filtering
-            start_date = None
-            end_date = None
-    else:
-        # Default behavior - no date filtering
-        start_date = None
-        end_date = None
+            # Unknown argument
+            print(f"❌ Unknown argument: {sys.argv[i]}")
+            sys.exit(1)
+        i += 1
     
     # Get active company info
     company_info = get_active_company()
