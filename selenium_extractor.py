@@ -10,18 +10,13 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
 
-
 def log_console(msg):
     print(msg)
 
+def wait_and_find_element(driver, by, value, timeout=10):
+    return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, value)))
 
-def wait_and_find_element(driver, by, value, timeout=10):  # Reduced from 15 to 10
-    return WebDriverWait(driver, timeout).until(
-        EC.presence_of_element_located((by, value))
-    )
-
-
-def login_to_da(da_url, da_login, da_password, driver, timeout=15):  # Reduced from 20 to 15
+def login_to_da(da_url, da_login, da_password, driver, timeout=15):
     log_console(f"🔐 Logging into DA Backoffice...")
     driver.get(da_url)
     wait = WebDriverWait(driver, timeout)
@@ -31,13 +26,11 @@ def login_to_da(da_url, da_login, da_password, driver, timeout=15):  # Reduced f
     wait.until(EC.presence_of_element_located((By.XPATH, "//nav[contains(@class, 'navbar-static-side')]")))
     log_console(f"✅ Login successful")
 
-
 def go_to_signed_list(driver):
     signed_url = "https://backoffice.doctoralliance.com/Documents/Signed"
     driver.get(signed_url)
-    WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.TAG_NAME, "body")))  # Reduced from 10 to 8
-    time.sleep(0.3)  # Reduced from 1.2 to 0.3
-
+    WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    time.sleep(0.3)
 
 def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
     doc_ids = []
@@ -45,22 +38,16 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
     start_cutoff_date = datetime.strptime(start_date, "%m/%d/%Y")
     end_cutoff_date = datetime.strptime(end_date, "%m/%d/%Y") if end_date else None
     seen_ids = set()
-    
-    # Track previous page content to detect infinite loops
     previous_page_doc_ids = set()
     consecutive_same_pages = 0
     
     while True:
         log_console(f"📄 Inbox page {page} (Found {len(doc_ids)} total docs)")
-        time.sleep(0.5)  # Slightly longer wait for page load
+        time.sleep(2)
         
         try:
-            # Wait for table to load and be stable
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr"))
-            )
-            # Additional wait for dynamic content to stabilize
-            time.sleep(0.5)
+            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
+            time.sleep(2)
             current_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
         except TimeoutException:
             log_console("❌ Timeout waiting for inbox table")
@@ -71,7 +58,6 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             break
         
         log_console(f"📊 Processing {len(current_rows)} rows on page {page}")
-        
         stop_flag = False
         current_page_doc_ids = set()
         
@@ -97,7 +83,6 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 if not doc_id:
                     continue
                 
-                # Track current page doc IDs for loop detection
                 current_page_doc_ids.add(doc_id)
                 
                 if doc_id not in seen_ids:
@@ -108,13 +93,13 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 log_console(f"⚠️ Error processing row on page {page}: {e}")
                 continue
         
-        # **INFINITE LOOP DETECTION**
+        # Infinite loop detection
         if current_page_doc_ids == previous_page_doc_ids:
             consecutive_same_pages += 1
-            log_console(f"⚠️ Same page detected {consecutive_same_pages} times - possible pagination issue")
+            log_console(f"⚠️ Same page detected {consecutive_same_pages} times")
             
             if consecutive_same_pages >= 3:
-                log_console(f"🛑 Breaking due to pagination loop. Found {len(doc_ids)} total docs from inbox")
+                log_console(f"🛑 Breaking due to pagination loop. Found {len(doc_ids)} total docs")
                 break
         else:
             consecutive_same_pages = 0
@@ -124,41 +109,29 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             log_console(f"🛑 Reached start date cutoff. Total inbox docs: {len(doc_ids)}")
             break
             
-        # **IMPROVED PAGINATION HANDLING**
+        # Pagination
         try:
-            # First check if next button exists and is enabled
             next_btn = driver.find_element(By.XPATH, "//li[contains(@class,'page-next') and not(contains(@class, 'disabled'))]/a")
-            
             if not next_btn:
                 log_console("🛑 Next button not found - end of pages")
                 break
                 
-            # Get current URL before clicking
             current_url = driver.current_url
-            
-            # Scroll to next button and click
             driver.execute_script("arguments[0].scrollIntoView();", next_btn)
             time.sleep(0.3)
             
-            # Try JavaScript click first
             try:
                 driver.execute_script("arguments[0].click();", next_btn)
             except:
-                # Fallback to regular click
                 next_btn.click()
             
-            # Wait for URL to change or content to load
             page_changed = False
-            for wait_attempt in range(10):  # Wait up to 5 seconds
+            for wait_attempt in range(10):
                 time.sleep(0.5)
                 new_url = driver.current_url
                 
-                # Check if page content is loading
                 try:
-                    WebDriverWait(driver, 1).until(
-                        EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr"))
-                    )
-                    # Check if we have different content
+                    WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
                     new_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
                     if len(new_rows) != len(current_rows):
                         page_changed = True
@@ -167,11 +140,8 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                     continue
             
             if not page_changed:
-                log_console(f"⚠️ Page didn't change after next button click - trying alternative method")
-                
-                # Alternative: Try direct URL manipulation if possible
+                log_console(f"⚠️ Page didn't change after next button click")
                 try:
-                    # Look for page number in URL and increment it
                     if "page=" in current_url:
                         new_url = re.sub(r'page=\d+', f'page={page+1}', current_url)
                         driver.get(new_url)
@@ -187,8 +157,52 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             break
     
     log_console(f"✅ Inbox extraction complete: {len(doc_ids)} documents found")
+    
+    # Retry if no documents found
+    if len(doc_ids) == 0:
+        log_console("⚠️ No documents found in inbox, retrying with longer wait...")
+        time.sleep(5)
+        driver.refresh()
+        time.sleep(3)
+        
+        retry_doc_ids = []
+        page = 1
+        while page <= 3:
+            log_console(f"📄 Retry - Inbox page {page}")
+            time.sleep(3)
+            
+            try:
+                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
+                time.sleep(2)
+                current_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
+                
+                if current_rows:
+                    for row in current_rows:
+                        try:
+                            cells = row.find_elements(By.TAG_NAME, "td")
+                            if len(cells) >= 9:
+                                doc_id = cells[8].text.strip()
+                                if doc_id and doc_id not in retry_doc_ids:
+                                    retry_doc_ids.append(doc_id)
+                        except Exception as e:
+                            continue
+                
+                try:
+                    next_btn = driver.find_element(By.XPATH, "//li[contains(@class,'page-next') and not(contains(@class, 'disabled'))]/a")
+                    driver.execute_script("arguments[0].click();", next_btn)
+                    time.sleep(2)
+                except:
+                    break
+                    
+                page += 1
+            except TimeoutException:
+                break
+        
+        if retry_doc_ids:
+            log_console(f"✅ Retry successful: Found {len(retry_doc_ids)} documents")
+            return retry_doc_ids
+    
     return doc_ids
-
 
 def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     doc_ids = []
@@ -198,7 +212,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         log_console("Navigating to Signed tab...")
         signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
         signed_link.click()
-        time.sleep(1)  # Reduced from 2 to 1
+        time.sleep(1)
         
         start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker")
         start_date_input.clear()
@@ -212,7 +226,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         
         go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid")
         go_button.click()
-        time.sleep(2)  # Reduced from 5 to 2
+        time.sleep(5)
         
         try:
             driver.find_element(By.XPATH, "//td[@colspan='11' and contains(text(), 'No matching records found')]")
@@ -225,11 +239,9 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         while True:
             log_console(f"📄 Signed docs page {page}")
             
-            # Wait for table to load
             try:
-                WebDriverWait(driver, 5).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr"))
-                )
+                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
+                time.sleep(2)
                 table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
             except TimeoutException:
                 break
@@ -253,7 +265,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             try:
                 next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
                 next_button.click()
-                time.sleep(2)  # Reduced from 5 to 2
+                time.sleep(2)
             except Exception as e:
                 log_console(f"⚠️ Next button not found in signed tab, breaking. {e}")
                 break
@@ -262,35 +274,92 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             
     except Exception as e:
         log_console(f"❌ Error scraping Signed tab: {e}")
+    
+    # Retry if no documents found
+    if len(doc_ids) == 0:
+        log_console("⚠️ No documents found in signed tab, retrying with longer wait...")
+        time.sleep(5)
+        driver.refresh()
+        time.sleep(3)
+        
+        try:
+            signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
+            signed_link.click()
+            time.sleep(3)
+            
+            start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker")
+            start_date_input.clear()
+            start_date_input.send_keys(start_date)
+            
+            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker")
+            end_date_input.clear()
+            if not end_date:
+                end_date = datetime.now().strftime("%m/%d/%Y")
+            end_date_input.send_keys(end_date)
+            
+            go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid")
+            go_button.click()
+            time.sleep(8)
+            
+            try:
+                driver.find_element(By.XPATH, "//td[@colspan='11' and contains(text(), 'No matching records found')]")
+                log_console("No Signed Orders found on retry")
+            except Exception:
+                retry_doc_ids = []
+                page = 1
+                while page <= 3:
+                    try:
+                        WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
+                        time.sleep(2)
+                        table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
+                        
+                        if table_rows:
+                            for row in table_rows:
+                                try:
+                                    doc_id = row.find_element(By.CSS_SELECTOR, "td:nth-child(10) span.text-muted").text.strip()
+                                    if doc_id and doc_id not in retry_doc_ids:
+                                        retry_doc_ids.append(doc_id)
+                                except Exception as e:
+                                    continue
+                        
+                        if len(table_rows) < 10:
+                            break
+                            
+                        try:
+                            next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
+                            next_button.click()
+                            time.sleep(3)
+                        except Exception as e:
+                            break
+                            
+                        page += 1
+                    except TimeoutException:
+                        break
+                
+                if retry_doc_ids:
+                    log_console(f"✅ Signed retry successful: Found {len(retry_doc_ids)} documents")
+                    return retry_doc_ids
+        except Exception as e:
+            log_console(f"❌ Error on signed retry: {e}")
         
     return doc_ids
 
-
 def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
-    # Optimized session refresh - only do it every 25 documents
     if not hasattr(extract_npi_and_document_type_with_session_refresh, 'counter'):
         extract_npi_and_document_type_with_session_refresh.counter = 0
         
     extract_npi_and_document_type_with_session_refresh.counter += 1
     
-    # Only refresh session every 25 documents instead of every document
     if extract_npi_and_document_type_with_session_refresh.counter % 25 == 1:
         go_to_signed_list(driver)
-        time.sleep(0.3)  # Reduced from 1.1 to 0.3
+        time.sleep(0.3)
     
     detail_url = f"https://backoffice.doctoralliance.com/Documents2/Show/{doc_id}"
     log_console(f"🔗 Navigating to: {detail_url}")
     
     try:
-        # Navigate with minimal timeout
         driver.get(detail_url)
-        
-        # Very short wait - just enough for essential content
-        WebDriverWait(driver, 3).until(  # Reduced from 10 to 3
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        # Skip additional sleep - rely on WebDriverWait only
-        
+        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     except:
         log_console("❌ Timeout loading doc detail page (possibly session lost).")
         return "", ""
@@ -301,9 +370,8 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
         return "", ""
     
     # Extract NPI
-    # Optimized XPath order - put most successful matches first based on your output
     xpaths_to_try = [
-        "/html/body/div/div/div[2]/div[3]/div/div[3]/p",  # This one is working for your docs
+        "/html/body/div/div/div[2]/div[3]/div/div[3]/p",
         "//span[contains(text(), 'NPI')]/following-sibling::span",
         "//p[contains(text(), 'NPI')]/span",
         "/html/body/div/div/div[2]/div[2]/div[5]/div/div[4]/p[1]/span[2]",
@@ -315,9 +383,7 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
     npi = ""
     for xpath in xpaths_to_try:
         try:
-            element = WebDriverWait(driver, 1).until(  # Very short wait
-                EC.presence_of_element_located((By.XPATH, xpath))
-            )
+            element = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, xpath)))
             text = element.text.strip()
             match = re.search(r'\b\d{10}\b', text)
             if match:
@@ -328,13 +394,11 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
             continue
             
     if not npi:
-        # Quick regex fallback on page source (only if needed)
         text = driver.page_source
         match = re.search(r"\[(\d{10})\]", text)
         if match:
             npi = match.group(1)
         else:
-            # One more quick search for any 10-digit number
             match = re.search(r'\b\d{10}\b', text)
             if match:
                 npi = match.group(0)
@@ -355,9 +419,7 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
     
     for xpath in doc_type_xpaths:
         try:
-            element = WebDriverWait(driver, 1).until(
-                EC.presence_of_element_located((By.XPATH, xpath))
-            )
+            element = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, xpath)))
             text = element.text.strip()
             if text and text.lower() not in ['document type', 'type', '']:
                 document_type = text
@@ -366,17 +428,15 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
         except Exception:
             continue
     
-    # If not found via XPath, try regex on page source
     if not document_type:
         page_source = driver.page_source
-        # Look for common document type patterns
         doc_type_patterns = [
             r'"documentType"\s*:\s*"([^"]+)"',
             r'documentType["\']?\s*:\s*["\']([^"\']+)["\']',
             r'type["\']?\s*:\s*["\']([^"\']+)["\']',
-            r'485[^"\s]*',  # Look for 485 specifically
-            r'CERT[^"\s]*',  # Look for CERT
-            r'RECERT[^"\s]*'  # Look for RECERT
+            r'485[^"\s]*',
+            r'CERT[^"\s]*',
+            r'RECERT[^"\s]*'
         ]
         
         for pattern in doc_type_patterns:
@@ -388,11 +448,9 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
             
     return npi, document_type
 
-
 def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None, company_key=None):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
-    # Include company key in filename if provided
     if company_key:
         output_path = os.path.join("Combined", f"DocumentID_NPI_{company_key}_{timestamp}.xlsx")
     else:
@@ -400,7 +458,6 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     
     os.makedirs("Combined", exist_ok=True)
     
-    # Ultra-fast Chrome options
     options = webdriver.ChromeOptions()
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
@@ -414,16 +471,14 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--disable-background-timer-throttling")
     options.add_argument("--disable-renderer-backgrounding")
     options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--page-load-strategy=none")  # Changed to 'none' for fastest loading
+    options.add_argument("--page-load-strategy=none")
     options.add_argument("--aggressive-cache-discard")
     options.add_argument("--memory-pressure-off")
     
     driver = webdriver.Chrome(options=options)
     driver.maximize_window()
-    
-    # Set very fast timeouts
-    driver.set_page_load_timeout(10)  # Reduced from 30
-    driver.implicitly_wait(2)  # Reduced from 5
+    driver.set_page_load_timeout(10)
+    driver.implicitly_wait(2)
 
     try:
         login_to_da(da_url, da_login, da_password, driver)
@@ -431,15 +486,13 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         wait_and_find_element(driver, By.ID, "Query").send_keys(helper_id)
         wait_and_find_element(driver, By.ID, "select2-SearchType-container").click()
         wait_and_find_element(driver, By.CLASS_NAME, "select2-search__field").send_keys("Users")
-        WebDriverWait(driver, 8).until(  # Reduced from 10 to 8
-            EC.visibility_of_element_located((By.XPATH, "//li[contains(@id, 'select2-SearchType-result')][1]"))
-        ).click()
+        WebDriverWait(driver, 8).until(EC.visibility_of_element_located((By.XPATH, "//li[contains(@id, 'select2-SearchType-result')][1]"))).click()
         wait_and_find_element(driver, By.CLASS_NAME, "btn-success").click()
-        time.sleep(1)  # Reduced from 4 to 1
+        time.sleep(1)
         wait_and_find_element(driver, By.CLASS_NAME, "linkedRow").click()
-        time.sleep(1)  # Reduced from 3 to 1
+        time.sleep(1)
         wait_and_find_element(driver, By.LINK_TEXT, "Impersonate").click()
-        time.sleep(2)  # Reduced from 7 to 2
+        time.sleep(2)
         driver.switch_to.window(driver.window_handles[1])
         
         # Inbox
@@ -470,7 +523,6 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             allowed_types = get_allowed_document_types(company_key)
             
             if should_filter and allowed_types:
-                # Check if document type matches any allowed types
                 doc_type_upper = document_type.upper() if document_type else ""
                 is_allowed = any(keyword in doc_type_upper for keyword in allowed_types)
                 
@@ -480,24 +532,25 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
                 else:
                     log_console(f"❌ {doc_id}  NPI: {npi}  Type: {document_type} (NOT ALLOWED - EXCLUDED)")
             else:
-                # No filtering enabled, include all records
                 filtered_records.append(record)
                 log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (NO FILTER - INCLUDED)")
         
-        # Use filtered records for output
         final_records = filtered_records if filtered_records else records
         combined_df = pd.DataFrame(final_records)
         combined_df.to_excel(output_path, index=False)
         log_console(f"✅ Combined Excel created at: {output_path}\nRows: {len(combined_df)}")
         
-        # Show some statistics
-        npi_found = len([r for r in final_records if r['NPI']])
-        log_console(f"📊 Success rate: {npi_found}/{len(final_records)} ({npi_found/len(final_records)*100:.1f}%)")
-        
-        if should_filter and allowed_types:
-            log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
+        if len(final_records) > 0:
+            npi_found = len([r for r in final_records if r['NPI']])
+            success_rate = (npi_found/len(final_records)*100) if len(final_records) > 0 else 0
+            log_console(f"📊 Success rate: {npi_found}/{len(final_records)} ({success_rate:.1f}%)")
+            
+            if should_filter and allowed_types:
+                log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
+            else:
+                log_console(f"📊 No filtering applied: {len(final_records)} documents processed")
         else:
-            log_console(f"📊 No filtering applied: {len(final_records)} documents processed")
+            log_console("📊 No documents found in the specified date range")
         
     except Exception as e:
         log_console(f"❌ Extraction failed: {e}")
@@ -505,12 +558,10 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         driver.quit()
         log_console("👋 WebDriver closed")
 
-
 if __name__ == "__main__":
     print("🚀 Doctor Alliance - Document ID & NPI Extractor (Ultra-Optimized Mode)")
     print("=" * 40)
     
-    # Get start date from command line arguments
     if len(sys.argv) > 1:
         user_start_date = sys.argv[1]
         print(f" Using start date from argument: {user_start_date}")
@@ -521,19 +572,16 @@ if __name__ == "__main__":
             user_start_date = default_date
             print(f" Using default start date: {user_start_date}")
     
-    # Get end date from command line arguments
     user_end_date = None
     if len(sys.argv) > 2:
         user_end_date = sys.argv[2]
         print(f" Using end date from argument: {user_end_date}")
     
-    # Get company key from command line arguments
     company_key = None
     if len(sys.argv) > 3:
         company_key = sys.argv[3]
         print(f" Using company key from argument: {company_key}")
     
-    # Get helper_id from config based on active company or specified company
     from config import get_active_company, get_company_config
     try:
         if company_key:
@@ -544,7 +592,7 @@ if __name__ == "__main__":
         print(f" Using helper ID for {company_info['name']}: {helper_id}")
     except Exception as e:
         print(f" Warning: Could not get helper ID from config, using default: {e}")
-        helper_id = ""  # Default fallback
+        helper_id = ""
     
     da_url = "https://backoffice.doctoralliance.com"
     da_login = "sannidhay"
