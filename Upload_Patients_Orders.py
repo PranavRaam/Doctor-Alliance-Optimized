@@ -4,21 +4,93 @@ import datetime
 import json
 import re
 import math
+import base64
+import tempfile
+import os
 
+# These will be set dynamically based on company configuration
 PATIENT_CREATE_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/create"
-PATIENT_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/company/pg/bc3a6a28-dd03-4cf3-95ba-2c5976619818"
+PATIENT_API = None  # Will be set dynamically
 ORDER_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Order"
+ORDER_PDF_UPLOAD_API = "https://dawavadmin-djb0f9atf8e6cwgx.eastus-01.azurewebsites.net/api/OrderPdfUpload/upload"
 HEADERS = {'accept': '*/*', 'Content-Type': 'application/json'}
 
+
+def get_api_urls_for_company(company_key=None):
+    """Get API URLs for a specific company."""
+    from config import get_company_config
+    
+    if company_key is None:
+        from config import ACTIVE_COMPANY
+        company_key = ACTIVE_COMPANY
+    
+    company = get_company_config(company_key)
+    pg_company_id = company['pg_company_id']
+    
+    return {
+        "patient_api": f"https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/company/pg/{pg_company_id}",
+        "order_api": ORDER_API,
+        "patient_create_api": PATIENT_CREATE_API
+    }
+
+
+def set_company_api_urls(company_key=None):
+    """Set the global API URLs for the specified company."""
+    global PATIENT_API
+    urls = get_api_urls_for_company(company_key)
+    PATIENT_API = urls["patient_api"]
+    print(f"🔧 Set API URLs for company: {company_key}")
+    print(f"   Patient API: {PATIENT_API}")
+    print(f"   Order API: {urls['order_api']}")
+
+
+def clean_order_number_for_upload(val):
+    """Clean order number for upload - modular function."""
+    if not val:
+        return ""
+    
+    # Remove all non-alphanumeric characters
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', str(val))
+    
+    # Ensure minimum length
+    if len(cleaned) < 3:
+        return ""
+    
+    return cleaned
+
+
+def clean_mrn_for_upload(val):
+    """Clean MRN for upload - modular function."""
+    if not val:
+        return ""
+    
+    # Remove all non-alphanumeric characters  
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', str(val))
+    
+    # Must be more than 3 characters and contain at least one digit
+    if len(cleaned) <= 3 or not any(c.isdigit() for c in cleaned):
+        return ""
+    
+    return cleaned
+
+
 def clean_id(val):
+    """Enhanced clean_id with alphanumeric validation."""
     if pd.isna(val) or val is None:
         return ""
+    
     if isinstance(val, float) and val.is_integer():
-        return str(int(val))
-    s = str(val)
-    if s.endswith('.0'):
-        return s[:-2]
-    return s
+        cleaned = str(int(val))
+    else:
+        cleaned = str(val)
+        if cleaned.endswith('.0'):
+            cleaned = cleaned[:-2]
+    
+    # Remove non-alphanumeric characters
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', cleaned)
+    
+    return cleaned
+
 
 def clean_payload_for_json(obj):
     """Recursively replace NaN, inf, -inf with empty string."""
@@ -33,6 +105,7 @@ def clean_payload_for_json(obj):
     elif pd.isna(obj):
         return ""
     return obj
+
 
 def split_name(full_name):
     if not isinstance(full_name, str):
@@ -55,6 +128,8 @@ def get_age(dob):
         return str(today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day)))
     except Exception:
         return ""
+
+
 def search_patientid_by_name_dob(patients, name, dob):
     if not isinstance(name, str):
         name = "" if pd.isna(name) else str(name)
@@ -76,6 +151,7 @@ def search_patientid_by_name_dob(patients, name, dob):
             return p.get("id", "")
     return ""
 
+
 def parse_address(address):
     state, city, zipc = "", "", ""
     if not isinstance(address, str):
@@ -91,6 +167,7 @@ def parse_address(address):
         state = parts[-1].strip().split()[0] if len(parts[-1].split()) > 0 else ""
     return state, city, zipc
 
+
 def standardize_patient_sex(val):
     if not val:
         return ""
@@ -101,18 +178,112 @@ def standardize_patient_sex(val):
         return "FEMALE"
     return ""
 
+
 def now_iso():
     return datetime.datetime.now().isoformat()
 
+
+def get_order_id_with_fallback(row):
+    """Generate order ID with enhanced validation and fallback."""
+    order_id = row.get("orderno", "")
+    
+    # Clean the order ID
+    if order_id:
+        cleaned_order = clean_order_number_for_upload(order_id)
+        if cleaned_order:
+            return cleaned_order
+    
+    # Fallback to NOF-{DocumentID}
+    doc_id = clean_id(row.get("docId", row.get("Document ID", "")))
+    if doc_id:
+        fallback_order = f"NOF{doc_id}"  # Remove hyphen for pure alphanumeric
+        return clean_order_number_for_upload(fallback_order)
+    
+    return ""
+
+
+def get_order_date_with_fallback(row):
+    """Get order date with sendDate fallback"""
+    orderdate = row.get("orderdate")
+    sendDate = row.get("sendDate")
+    
+    # Clean and validate orderdate
+    if pd.isna(orderdate) or orderdate is None or str(orderdate).strip() == "":
+        orderdate = None
+    else:
+        orderdate = str(orderdate).strip()
+    
+    # Clean and validate sendDate
+    if pd.isna(sendDate) or sendDate is None or str(sendDate).strip() == "":
+        sendDate = None
+    else:
+        sendDate = str(sendDate).strip()
+    
+    return orderdate or sendDate or ""
+
+
+def get_episode_data_from_patient(row, patients):
+    """Get SOC/SOE/EOE from patient data when missing in order"""
+    patient_id = clean_id(row.get("patientid", ""))
+    if not patient_id:
+        return row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
+    
+    # Get the reference date (sendDate or orderDate)
+    ref_date = get_order_date_with_fallback(row)
+    if not ref_date:
+        return row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
+    
+    try:
+        ref_date_parsed = pd.to_datetime(ref_date)
+    except:
+        return row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
+    
+    # Find matching patient and episode
+    for patient in patients:
+        if clean_id(patient.get("id", "")) == patient_id:
+            agency_info = patient.get("agencyInfo", {})
+            episodes = agency_info.get("episodeDiagnoses", [])
+            
+            for episode in episodes:
+                try:
+                    soe = episode.get("startOfEpisode", "")
+                    eoe = episode.get("endOfEpisode", "")
+                    if soe and eoe:
+                        soe_parsed = pd.to_datetime(soe)
+                        eoe_parsed = pd.to_datetime(eoe)
+                        if soe_parsed <= ref_date_parsed <= eoe_parsed:
+                            return (
+                                episode.get("startOfCare", row.get("soc", "")),
+                                soe,
+                                eoe
+                            )
+                except:
+                    continue
+    
+    # Return original values if no match found
+    return row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
+
+
 def build_patient_payload(row):
+    """Enhanced patient payload with cleaned fields."""
     required = ['patientName', 'dob', 'mrn', 'soc', 'cert_period_soe', 'cert_period_eoe', 'Diagnosis 1', 'companyId', 'Pgcompanyid','patient_sex']
+    
     remarks = []
     for r in required:
         if not row.get(r):
             remarks.append(f"{r} absent")
-    fname, mname, lname = split_name(row.get("patientName", ""))
+    
+    # Clean MRN specifically
+    cleaned_mrn = clean_mrn_for_upload(row.get("mrn", ""))
+    if not cleaned_mrn:
+        remarks.append("MRN invalid (must be >3 chars, alphanumeric with at least one digit)")
+    
+    # Handle both patientName and patient_name fields
+    patient_name = row.get("patientName", "") or row.get("patient_name", "")
+    fname, mname, lname = split_name(patient_name)
     age = get_age(row.get("dob"))
     state, city, zipc = parse_address(row.get("address", ""))
+    
     payload = {
         "filterStatus": "",
         "patientEHRRecId": "",
@@ -123,13 +294,12 @@ def build_patient_payload(row):
         "dob": row.get("dob", ""),
         "age": age,
         "patientSex": standardize_patient_sex(row.get("patient_sex", "")),
-
         "patientStatus": "Active",
         "maritalStatus": "",
         "ssn": "",
         "startOfCare": row.get("soc", ""),
         "careManagement": [{"careManagementType": "CPO"}],
-        "medicalRecordNo": clean_id(row.get("mrn", "")),
+        "medicalRecordNo": cleaned_mrn,  # Use cleaned MRN
         "serviceLine": "",
         "patientAddress": row.get("address", ""),
         "state": state,
@@ -190,7 +360,9 @@ def build_patient_payload(row):
             "sixthDiagnosis": row.get("Diagnosis 6", "")
         }]
     }
+    
     return payload, remarks
+
 
 def create_patient(row):
     payload, remarks = build_patient_payload(row)
@@ -202,11 +374,11 @@ def create_patient(row):
         print("--- [PATIENT_CREATE] Response ---")
         print(f"Status: {resp.status_code}\n{resp.text}\n")
         success = resp.status_code in (200, 201) and (isinstance(resp.json(), dict) and resp.json().get("id"))
-
         return success, "; ".join(remarks)
     except Exception as e:
         print(f"  [PATIENT_CREATE] Error: {e}")
         return False, "; ".join(remarks) + f"; Exception: {e}"
+
 
 def refill_patient_info(df):
     try:
@@ -242,35 +414,26 @@ def refill_patient_info(df):
     return df
 
 
-def build_order_payload(row):
-    # Enhanced handling of orderdate and sendDate
-    orderdate = row.get("orderdate")
-    sendDate = row.get("sendDate")
-    
-    # Handle various empty value cases
-    if pd.isna(orderdate) or orderdate is None or str(orderdate).strip() == "":
-        orderdate = None
+def build_order_payload(row, patients=None):
+    """Build order payload with enhanced field cleaning."""
+    # Get episode data with patient lookup if needed
+    if patients:
+        soc, soe, eoe = get_episode_data_from_patient(row, patients)
     else:
-        orderdate = str(orderdate).strip()
+        soc, soe, eoe = row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
     
-    if pd.isna(sendDate) or sendDate is None or str(sendDate).strip() == "":
-        sendDate = None
-    else:
-        sendDate = str(sendDate).strip()
-    
-    # Use sendDate as fallback when orderdate is empty
-    final_order_date = orderdate or sendDate or ""
+    # Handle both patientName and patient_name fields
+    patient_name = row.get("patientName", "") or row.get("patient_name", "")
     
     return {
-        "orderNo": row.get("orderno", ""),
-        "orderDate": final_order_date,
-
-        "startOfCare": row.get("soc", ""),
-        "episodeStartDate": row.get("cert_period_soe", ""),
-        "episodeEndDate": row.get("cert_period_eoe", ""),
-        "documentID": clean_id(row.get("Document ID", "")),
-        "mrn": clean_id(row.get("mrn", "")),
-        "patientName": row.get("patientName", ""),
+        "orderNo": get_order_id_with_fallback(row),  # Uses enhanced cleaning
+        "orderDate": get_order_date_with_fallback(row),
+        "startOfCare": soc,
+        "episodeStartDate": soe,
+        "episodeEndDate": eoe,
+        "documentID": clean_id(row.get("docId", row.get("Document ID", ""))),
+        "mrn": clean_mrn_for_upload(row.get("mrn", "")),  # Use cleaned MRN
+        "patientName": patient_name,
         "sentToPhysicianDate": row.get("sendDate", ""),
         "sentToPhysicianStatus": True,
         "signedByPhysicianDate": row.get("physicianSigndate", ""),
@@ -308,8 +471,9 @@ def build_order_payload(row):
         "cpoUpdatedOn": now_iso()
     }
 
-def create_order(row):
-    payload = build_order_payload(row)
+
+def create_order(row, patients=None):
+    payload = build_order_payload(row, patients)
     payload = clean_payload_for_json(payload)
     print("\n--- [ORDER_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
@@ -333,6 +497,79 @@ def create_order(row):
     except Exception as e:
         print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
         return False, f"Exception: {e}"
+
+
+def upload_pdf_to_order(document_buffer, order_guid):
+    """
+    Upload PDF content to the OrderPdfUpload API.
+    
+    Args:
+        document_buffer (str): Base64 encoded PDF content
+        order_guid (str): The order GUID to upload to
+    
+    Returns:
+        tuple: (success: bool, response_text: str)
+    """
+    try:
+        # Decode base64 PDF content
+        pdf_bytes = base64.b64decode(document_buffer)
+        
+        # Create temporary PDF file
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+            temp_file.write(pdf_bytes)
+            temp_file_path = temp_file.name
+        
+        try:
+            # Prepare the upload URL with order GUID
+            upload_url = f"{ORDER_PDF_UPLOAD_API}/{order_guid}"
+            
+            # Prepare multipart form data
+            with open(temp_file_path, 'rb') as pdf_file:
+                files = {
+                    'file': ('document.pdf', pdf_file, 'application/pdf')
+                }
+                
+                # Upload the PDF
+                response = requests.post(
+                    upload_url,
+                    files=files,
+                    headers={'accept': '*/*'},
+                    timeout=30
+                )
+                
+                print(f"--- [PDF_UPLOAD] Response for Order {order_guid} ---")
+                print(f"Status: {response.status_code}")
+                print(f"Response: {response.text}\n")
+                
+                success = response.status_code in (200, 201)
+                return success, response.text
+                
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
+                
+    except Exception as e:
+        print(f"  [PDF_UPLOAD] Error for Order {order_guid}: {e}")
+        return False, f"Exception: {e}"
+
+
+def upload_pdf_from_document_data(doc_data, order_guid):
+    try:
+        # Extract PDF buffer from document data
+        if 'value' in doc_data and isinstance(doc_data['value'], dict):
+            value_obj = doc_data['value']
+            if 'documentBuffer' in value_obj and value_obj['documentBuffer']:
+                return upload_pdf_to_order(value_obj['documentBuffer'], order_guid)
+            else:
+                return False, "No documentBuffer found in document data"
+        else:
+            return False, "Invalid document data structure"
+            
+    except Exception as e:
+        print(f"  [PDF_UPLOAD] Error processing document data for Order {order_guid}: {e}")
+        return False, f"Exception: {e}"
+
 
 def main():
     df = pd.read_excel("supreme_excel.xlsx")
@@ -396,13 +633,21 @@ def main():
     df = refill_patient_info(df)
     df.to_excel("supreme_excel_with_patient_upload.xlsx", index=False)
 
+    # Download patients once for episode lookup
+    try:
+        resp = requests.get(PATIENT_API, timeout=30)
+        patients_for_orders = resp.json()
+    except Exception as e:
+        print(f"Warning: Could not download patients for episode lookup: {e}")
+        patients_for_orders = []
+
     # 3. Upload orders for PatientExist==TRUE
     df['ORDERUPLOAD_STATUS'] = ""
-    df['ORDER_CREATION_REMARK'] = ""  # Ensure exists
+    df['ORDER_CREATION_REMARK'] = ""
     for idx, row in df.iterrows():
         if row.get('PatientExist', False):
             try:
-                order_success, order_remark = create_order(row)  # Now expects a tuple!
+                order_success, order_remark = create_order(row, patients_for_orders)
                 df.at[idx, 'ORDERUPLOAD_STATUS'] = "TRUE" if order_success else "FALSE"
                 df.at[idx, 'ORDER_CREATION_REMARK'] = order_remark
             except Exception as e:
@@ -414,7 +659,6 @@ def main():
 
     df.to_excel("supreme_excel_with_patient_and_order_upload.xlsx", index=False)
     print("Upload process complete. Check supreme_excel_with_patient_and_order_upload.xlsx")
-
 
 
 if __name__ == "__main__":

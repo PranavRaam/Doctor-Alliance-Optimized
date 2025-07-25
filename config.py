@@ -75,6 +75,60 @@ FIELD_EXTRACTION_CONFIG = {
 }
 
 # ===========================================
+# DATE RANGE CONFIGURATION
+# ===========================================
+
+# Date range for processing (MM/DD/YYYY format)
+DATE_RANGE = {
+    "start_date": "06/15/2025",
+    "end_date": "06/30/2025",
+}
+
+# Multiple companies to process (leave empty list for single company)
+MULTIPLE_COMPANIES = [
+    # Uncomment and modify the companies you want to process
+    # "housecall_md",
+    # "los_cerros", 
+    # "rocky_mountain"
+]
+
+# If MULTIPLE_COMPANIES is empty, use the active company
+# If MULTIPLE_COMPANIES has entries, process all of them
+PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
+
+# ===========================================
+# CONFIGURATION EXAMPLES
+# ===========================================
+
+# Example 1: Single Company Processing
+# DATE_RANGE = {"start_date": "06/15/2024", "end_date": "06/30/2024"}
+# MULTIPLE_COMPANIES = []  # Empty list = single company
+# ACTIVE_COMPANY = "los_cerros"
+
+# Example 2: Multiple Companies Processing
+# DATE_RANGE = {"start_date": "06/01/2024", "end_date": "06/30/2024"}
+# MULTIPLE_COMPANIES = ["housecall_md", "los_cerros", "rocky_mountain"]
+# ACTIVE_COMPANY = "los_cerros"  # This will be ignored when MULTIPLE_COMPANIES is not empty
+
+# Example 3: Different Date Range
+# DATE_RANGE = {"start_date": "05/01/2024", "end_date": "05/31/2024"}
+# MULTIPLE_COMPANIES = ["los_cerros"]
+# ACTIVE_COMPANY = "los_cerros"
+
+# ===========================================
+# USAGE INSTRUCTIONS
+# ===========================================
+
+# To use this system:
+# 1. Set your desired date range in DATE_RANGE above
+# 2. For single company: leave MULTIPLE_COMPANIES empty and set ACTIVE_COMPANY
+# 3. For multiple companies: add company keys to MULTIPLE_COMPANIES list
+# 4. Run: python main.py
+# 5. No command line arguments needed!
+
+# Available company keys: "housecall_md", "los_cerros", "rocky_mountain"
+
+# ===========================================
 # COMPANY CONFIGURATIONS
 # ===========================================
 
@@ -83,21 +137,24 @@ COMPANIES = {
     "housecall_md": {
         "name": "Housecall MD",
         "pg_company_id": "bc3a6a28-dd03-4cf3-95ba-2c5976619818",
-        "helper_id": "dhelperph621",
-        "description": "Housecall MD - Primary care and home health services"
+        "helper_id": "dhelperph621"
     },
     "los_cerros": {
         "name": "Los Cerros Medical LLC",
         "pg_company_id": "9d8d2765-0b51-489b-868c-a217b4283c62",
-        "helper_id": "ihelperph7221",
-        "description": "Los Cerros Medical LLC - Medical services and consultations"
+        "helper_id": "ihelperph7221"
     },
     "rocky_mountain": {
         "name": "Rocky Mountain Medical and Healthcare",
         "pg_company_id": "4e594a84-7340-469e-82fb-b41b91930db5",
-        "helper_id": "ihelperph4215",
-        "description": "Rocky Mountain Medical and Healthcare - Comprehensive healthcare services"
-    }
+        "helper_id": "ihelperph4215"
+    },
+    # EXAMPLE: How to add a new company
+    # "your_new_company": {
+    #     "name": "Your New Company Name",
+    #     "pg_company_id": "your-pg-company-id-here",
+    #     "helper_id": "your-helper-id-here"
+    # }
 }
 
 # Default company to use
@@ -105,6 +162,54 @@ DEFAULT_COMPANY = "housecall_md"
 
 # Active company setting - change this to switch companies
 ACTIVE_COMPANY = "los_cerros"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+
+# Function to get companies to process
+def get_companies_to_process():
+    """Get list of companies to process based on configuration."""
+    if PROCESS_MULTIPLE_COMPANIES and MULTIPLE_COMPANIES:
+        return MULTIPLE_COMPANIES
+    else:
+        return [ACTIVE_COMPANY]
+
+# Function to get date range
+def get_date_range():
+    """Get the configured date range."""
+    return DATE_RANGE["start_date"], DATE_RANGE["end_date"]
+
+# Function to set date range
+def set_date_range(start_date, end_date):
+    """Set the date range for processing."""
+    global DATE_RANGE
+    DATE_RANGE["start_date"] = start_date
+    DATE_RANGE["end_date"] = end_date
+    print(f"✅ Date range set to: {start_date} to {end_date}")
+
+# Function to show current configuration
+def show_current_config():
+    """Show the current processing configuration."""
+    print("🔧 Current Processing Configuration:")
+    print("=" * 50)
+    
+    # Show date range
+    start_date, end_date = get_date_range()
+    print(f"📅 Date Range: {start_date} to {end_date}")
+    
+    # Show companies to process
+    companies_to_process = get_companies_to_process()
+    if len(companies_to_process) == 1:
+        company = get_company_config(companies_to_process[0])
+        print(f"🏢 Single Company: {company['name']}")
+        print(f"   PG Company ID: {company['pg_company_id']}")
+        print(f"   Helper ID: {company['helper_id']}")
+    else:
+        print(f"🏢 Multiple Companies ({len(companies_to_process)}):")
+        for company_key in companies_to_process:
+            company = get_company_config(company_key)
+            print(f"   • {company['name']} ({company_key})")
+            print(f"     PG Company ID: {company['pg_company_id']}")
+            print(f"     Helper ID: {company['helper_id']}")
+    
+    print("=" * 50)
 
 # Function to get company configuration
 def get_company_config(company_key=None):

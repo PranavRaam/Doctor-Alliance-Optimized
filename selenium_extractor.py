@@ -343,9 +343,15 @@ def extract_npi_with_session_refresh(doc_id, driver):
     return npi
 
 
-def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None):
+def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None, company_key=None):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    output_path = os.path.join("Combined", f"DocumentID_NPI_{timestamp}.xlsx")
+    
+    # Include company key in filename if provided
+    if company_key:
+        output_path = os.path.join("Combined", f"DocumentID_NPI_{company_key}_{timestamp}.xlsx")
+    else:
+        output_path = os.path.join("Combined", f"DocumentID_NPI_{timestamp}.xlsx")
+    
     os.makedirs("Combined", exist_ok=True)
     
     # Ultra-fast Chrome options
@@ -445,10 +451,19 @@ if __name__ == "__main__":
         user_end_date = sys.argv[2]
         print(f" Using end date from argument: {user_end_date}")
     
-    # Get helper_id from config based on active company
-    from config import get_active_company
+    # Get company key from command line arguments
+    company_key = None
+    if len(sys.argv) > 3:
+        company_key = sys.argv[3]
+        print(f" Using company key from argument: {company_key}")
+    
+    # Get helper_id from config based on active company or specified company
+    from config import get_active_company, get_company_config
     try:
-        company_info = get_active_company()
+        if company_key:
+            company_info = get_company_config(company_key)
+        else:
+            company_info = get_active_company()
         helper_id = company_info['helper_id']
         print(f" Using helper ID for {company_info['name']}: {helper_id}")
     except Exception as e:
@@ -465,5 +480,6 @@ if __name__ == "__main__":
         da_password=da_password,
         helper_id=helper_id,
         start_date=user_start_date,
-        end_date=user_end_date
+        end_date=user_end_date,
+        company_key=company_key
     )

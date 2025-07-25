@@ -59,114 +59,50 @@ def cleanup_old_excels():
             except Exception as e:
                 print(f"[CLEANUP] Could not delete {f}: {e}")
 
-if __name__ == "__main__":
-    # Import config functions
-    from config import get_active_company, show_active_company, set_active_company, list_companies
+def process_single_company(company_key, start_date, end_date):
+    """Process a single company with the given date range."""
+    from config import get_company_config
     
-    # Initialize date variables
-    start_date = None
-    end_date = None
+    company = get_company_config(company_key)
+    print(f"\n🏢 Processing Company: {company['name']} ({company_key})")
+    print(f"   PG Company ID: {company['pg_company_id']}")
+    print(f"   Helper ID: {company['helper_id']}")
+    print(f"📅 Date Range: {start_date} to {end_date}")
     
-    # Show current active company
-    print("🏢 Current Active Company:")
-    show_active_company()
-    print()
+    # Set the active company for this processing
+    from config import set_active_company
+    set_active_company(company_key)
     
-    # Check command line arguments
-    import sys
-    i = 1
-    while i < len(sys.argv):
-        if sys.argv[i] == "--list-companies" or sys.argv[i] == "-l":
-            list_companies()
-            sys.exit(0)
-        elif sys.argv[i] == "--set-company" or sys.argv[i] == "-s":
-            if i + 1 < len(sys.argv):
-                try:
-                    set_active_company(sys.argv[i + 1])
-                    print()
-                    i += 2  # Skip the company key
-                    continue
-                except ValueError as e:
-                    print(f"❌ {e}")
-                    sys.exit(1)
-            else:
-                print("❌ Please provide a company key. Use --list-companies to see options.")
-                sys.exit(1)
-        elif sys.argv[i] == "--help" or sys.argv[i] == "-h":
-            print("DoctorAlliance PDF Processing Pipeline")
-            print("=" * 50)
-            print("Usage:")
-            print("  python main.py                    # Run with current active company")
-            print("  python main.py --list-companies   # List all available companies")
-            print("  python main.py --set-company <key> # Change active company")
-            print("  python main.py --june             # Process June 2024 documents")
-            print("  python main.py --date <start> <end> # Process specific date range")
-            print("  python main.py --help             # Show this help")
-            print()
-            print("Available company keys: housecall_md, los_cerros, rocky_mountain")
-            print("Date format: MM/DD/YYYY (e.g., 06/01/2024)")
-            sys.exit(0)
-        elif sys.argv[i] == "--june":
-            # Set June 2024 date range
-            start_date = "06/01/2024"
-            end_date = "06/30/2024"
-            print(f"📅 Processing June 2024 documents: {start_date} to {end_date}")
-            i += 1
-        elif sys.argv[i] == "--date":
-            if i + 2 < len(sys.argv):
-                start_date = sys.argv[i + 1]
-                end_date = sys.argv[i + 2]
-                print(f"📅 Processing documents from {start_date} to {end_date}")
-                i += 3  # Skip the date arguments
-                continue
-            else:
-                print("❌ Please provide start and end dates. Format: MM/DD/YYYY")
-                sys.exit(1)
-        else:
-            # Unknown argument
-            print(f"❌ Unknown argument: {sys.argv[i]}")
-            sys.exit(1)
-        i += 1
+    # Step 1: Run Selenium extractor with date parameters
+    print(f"\nStep 1: Extracting Document IDs & NPIs via Selenium for {company['name']}...")
+    run_script("selenium_extractor.py", [start_date, end_date, company_key])
     
-    # Get active company info
-    company_info = get_active_company()
-    
-    # CLEANUP old Excel outputs
-    cleanup_old_excels()
-
-    print("========== DoctorAlliance: Full Pipeline ==========")
-    print("Step 1: Extracting Document IDs & NPIs via Selenium...")
-
-    # Step 1: Run Selenium extractor with date parameters if specified
-    if start_date and end_date:
-        print(f"📅 Running Selenium extractor for date range: {start_date} to {end_date}")
-        run_script("selenium_extractor.py", [start_date, end_date])
-    else:
-        print("📅 Running Selenium extractor with default date range (30 days ago)")
-        run_script("selenium_extractor.py")
-
     # Step 2: Get latest DocumentID_NPI_*.xlsx file from Combined folder
-    latest_npi_excel = get_latest_file("Combined", "DocumentID_NPI_*.xlsx")
+    # Look for company-specific file first, then fallback to general pattern
+    latest_npi_excel = get_latest_file("Combined", f"DocumentID_NPI_{company_key}_*.xlsx")
     if not latest_npi_excel:
-        print("❌ No NPI output found from selenium_extractor.py, exiting.")
-        sys.exit(1)
+        latest_npi_excel = get_latest_file("Combined", "DocumentID_NPI_*.xlsx")
+    
+    if not latest_npi_excel:
+        print(f"❌ No NPI output found from selenium_extractor.py for {company['name']}, skipping.")
+        return False
     print(f"✅ Found latest NPI file: {latest_npi_excel}")
-
-    # Step 3: Run pipeline_main.py (enhanced PDF extractor) and pass the NPI Excel as argument
-    print("\nStep 2: Extracting PDF data with enhanced accuracy and producing final Excel...")
+    
+    # Step 3: Run pipeline_main.py
+    print(f"\nStep 2: Extracting PDF data with enhanced accuracy for {company['name']}...")
     run_script("pipeline_main.py", [latest_npi_excel])
-
+    
     # Step 4: Find the output Excel from pipeline_main.py
     pdf_output_excel = "doctoralliance_orders_accuracy_focused.xlsx"
     if not os.path.exists(pdf_output_excel):
-        print("❌ Enhanced PDF extractor output not found, exiting.")
-        sys.exit(1)
-
+        print(f"❌ Enhanced PDF extractor output not found for {company['name']}, skipping.")
+        return False
+    
     # Step 5: Merge/join both Excels into a final combined output
-    print("\nStep 3: Merging both outputs...")
+    print(f"\nStep 3: Merging both outputs for {company['name']}...")
     df_npi = pd.read_excel(latest_npi_excel)
     df_pdf = pd.read_excel(pdf_output_excel)
-
+    
     # Try both int and str merge for docId/Document ID
     try:
         merged = df_pdf.merge(
@@ -185,38 +121,90 @@ if __name__ == "__main__":
             left_on='docId',
             right_on='Document ID'
         )
-
+    
     # REMOVE DUPLICATES (orders already on platform)
-    print("\nStep 3.1: Removing orders already present on platform...")
-    existing_doc_ids = get_existing_document_ids()  # Uses active company from config
+    print(f"\nStep 3.1: Removing orders already present on platform for {company['name']}...")
+    existing_doc_ids = get_existing_document_ids(company_key)
     before_rows = len(merged)
     merged = merged[~merged["Document ID"].astype(str).isin(existing_doc_ids)].copy()
     after_rows = len(merged)
     print(f"✅ Removed {before_rows - after_rows} rows with existing Document IDs already present in the platform.")
-
-    combined_excel = "doctoralliance_combined_output.xlsx"
+    
+    # Save company-specific combined output
+    combined_excel = f"doctoralliance_combined_output_{company_key}.xlsx"
     merged.to_excel(combined_excel, index=False)
     print(f"\n✅ Combined output written to {combined_excel}")
-
+    
     # Step 6: Run supremesheet.py using the combined Excel as input
-    print("\nStep 4: Running supremesheet.py on combined output...")
+    print(f"\nStep 4: Running supremesheet.py on combined output for {company['name']}...")
     run_script("supremesheet.py", [combined_excel])
-
+    
     # Step 7: Confirm output
-    supremesheet_output = "supreme_excel.xlsx"
+    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
     if os.path.exists(supremesheet_output):
-        print(f"\n🎉 ALL DONE! Supreme sheet is ready: {supremesheet_output}")
+        print(f"\n🎉 Supreme sheet is ready for {company['name']}: {supremesheet_output}")
+        
+        # Step 8: Run Upload_Patients_Orders.py on the supreme Excel output
+        print(f"\nStep 5: Uploading Patients and Orders for {company['name']}...")
+        run_script("Upload_Patients_Orders.py", [supremesheet_output])
+        
+        print(f"\n✅ Upload_Patients_Orders.py finished for {company['name']}.")
+        return True
     else:
-        print("\n❌ supremesheet.py did not produce supreme_excel.xlsx, check logs.")
-        sys.exit(1)
+        print(f"\n❌ supremesheet.py did not produce {supremesheet_output} for {company['name']}, check logs.")
+        return False
 
-    # Step 8: Run Upload_Patients_Orders.py on the supreme Excel output
-    print("\nStep 5: Uploading Patients and Orders using Upload_Patients_Orders.py ...")
-    run_script("Upload_Patients_Orders.py", [supremesheet_output])
-
-    print(f"\n✅ Upload_Patients_Orders.py finished. Check your output or logs for details.")
-
-    # Step 9: Run mail.py to send email with output Excel
-    print("\nStep 6: Sending email with the output Excel (mail.py)...")
-    run_script("SendMail.py", [supremesheet_output])
-    print("\n✅ All steps finished. Check your mail for the report!")
+if __name__ == "__main__":
+    # Import config functions
+    from config import (
+        get_active_company, show_active_company, set_active_company, 
+        list_companies, get_companies_to_process, get_date_range, 
+        show_current_config, PROCESS_MULTIPLE_COMPANIES
+    )
+    
+    # Show current configuration
+    show_current_config()
+    print()
+    
+    # Get date range from config
+    start_date, end_date = get_date_range()
+    
+    # Get companies to process
+    companies_to_process = get_companies_to_process()
+    
+    # CLEANUP old Excel outputs
+    cleanup_old_excels()
+    
+    print("========== DoctorAlliance: Full Pipeline ==========")
+    
+    # Process companies
+    if PROCESS_MULTIPLE_COMPANIES:
+        print(f"🔄 Processing {len(companies_to_process)} companies...")
+        successful_companies = []
+        
+        for company_key in companies_to_process:
+            try:
+                success = process_single_company(company_key, start_date, end_date)
+                if success:
+                    successful_companies.append(company_key)
+            except Exception as e:
+                print(f"❌ Error processing {company_key}: {e}")
+        
+        print(f"\n✅ Processing complete! Successfully processed {len(successful_companies)} out of {len(companies_to_process)} companies.")
+        if successful_companies:
+            print(f"Successful companies: {', '.join(successful_companies)}")
+    else:
+        # Single company processing
+        company_key = companies_to_process[0]
+        success = process_single_company(company_key, start_date, end_date)
+        
+        if success:
+            # Step 9: Run mail.py to send email with output Excel
+            supremesheet_output = f"supreme_excel_{company_key}.xlsx"
+            print(f"\nStep 6: Sending email with the output Excel (mail.py)...")
+            run_script("SendMail.py", [supremesheet_output])
+            print("\n✅ All steps finished. Check your mail for the report!")
+        else:
+            print("\n❌ Processing failed. Check logs for details.")
+    
+    print("\n🎉 Pipeline execution complete!")

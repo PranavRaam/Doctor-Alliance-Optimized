@@ -51,14 +51,52 @@ def is_encoded_pdf(text):
     total_words = len(text.split())
     return cid_count > 0 and (cid_count / max(1, total_words)) > 0.01
 
-def clean_mrn(val):
-    """Clean and validate MRN value."""
+def clean_order_number(val):
+    """Clean and validate order number to be alphanumeric only."""
     if not val:
         return None
-    val = re.sub(r'[^A-Za-z0-9]', '', str(val))
-    if not val or len(val) < 4 or (val.isalpha() and not any(c.isdigit() for c in val)):
+    
+    # Remove all non-alphanumeric characters
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', str(val))
+    
+    if not cleaned or len(cleaned) < 3:
         return None
-    return val
+    
+    return cleaned
+
+def clean_mrn(val):
+    """Enhanced MRN cleaning with stricter validation."""
+    if not val:
+        return None
+    
+    # Remove all non-alphanumeric characters
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', str(val))
+    
+    # Must be more than 3 characters and contain at least one digit
+    if not cleaned or len(cleaned) <= 3:
+        return None
+    
+    # Should contain at least one number for medical record validation
+    if not any(c.isdigit() for c in cleaned):
+        return None
+    
+    return cleaned
+
+def validate_order_number(order_no: str) -> Tuple[bool, str]:
+    """Validate order number format."""
+    if not order_no:
+        return False, "Order number is empty"
+    
+    # Clean order number
+    cleaned_order = clean_order_number(order_no)
+    
+    if not cleaned_order:
+        return False, "Order number too short or invalid characters"
+    
+    if len(cleaned_order) > 20:  # Reasonable max length
+        return False, "Order number too long"
+    
+    return True, "Valid order number format"
 
 def standardize_patient_sex(value):
     """Standardize patient sex values."""
@@ -194,15 +232,15 @@ class MedicalFieldValidator:
     
     @staticmethod
     def validate_mrn(mrn: str) -> Tuple[bool, str]:
-        """Validate Medical Record Number format."""
+        """Enhanced MRN validation with stricter rules."""
         if not mrn:
             return False, "MRN is empty"
         
         # Clean MRN
-        cleaned_mrn = re.sub(r'[^A-Za-z0-9]', '', str(mrn))
+        cleaned_mrn = clean_mrn(mrn)
         
-        if len(cleaned_mrn) < 4:
-            return False, "MRN too short"
+        if not cleaned_mrn:
+            return False, "MRN must be more than 3 characters and alphanumeric"
         
         if len(cleaned_mrn) > 15:
             return False, "MRN too long"

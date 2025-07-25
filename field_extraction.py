@@ -725,13 +725,56 @@ RETURN ONLY JSON. Document text:
         
         return best_candidate
     
-    def _apply_business_logic_corrections(self, fields: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply medical document business logic corrections with enhanced date processing."""
+    def _clean_and_validate_extracted_fields(self, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean and validate extracted fields with modular approach."""
+        from validation import clean_order_number, clean_mrn, validate_order_number
         
-        # Generate order number if missing
-        if not fields.get("orderno") or str(fields.get("orderno")).strip().upper() in ["NOF_DAID", "NOF-DAID"]:
+        # Clean and validate order number
+        if fields.get("orderno"):
+            cleaned_order = self._clean_order_number(fields["orderno"])
+            if cleaned_order:
+                is_valid, _ = validate_order_number(cleaned_order)
+                if is_valid:
+                    fields["orderno"] = cleaned_order
+                    logger.info(f"Cleaned order number: {fields['orderno']}")
+                else:
+                    logger.warning(f"Invalid order number after cleaning: {cleaned_order}")
+                    fields["orderno"] = None
+            else:
+                logger.warning(f"Order number cleaning failed: {fields['orderno']}")
+                fields["orderno"] = None
+        
+        # Clean and validate MRN
+        if fields.get("mrn"):
+            cleaned_mrn = self._clean_mrn(fields["mrn"])
+            if cleaned_mrn:
+                is_valid, _ = self.validator.validate_mrn(cleaned_mrn)
+                if is_valid:
+                    fields["mrn"] = cleaned_mrn
+                    logger.info(f"Cleaned MRN: {fields['mrn']}")
+                else:
+                    logger.warning(f"Invalid MRN after cleaning: {cleaned_mrn}")
+                    fields["mrn"] = None
+            else:
+                logger.warning(f"MRN cleaning failed: {fields['mrn']}")
+                fields["mrn"] = None
+        
+        return fields
+
+    def _apply_business_logic_corrections(self, fields: Dict[str, Any]) -> Dict[str, Any]:
+        """Apply medical document business logic corrections with enhanced validation."""
+        
+        # First, clean and validate critical fields
+        fields = self._clean_and_validate_extracted_fields(fields)
+        
+        # Generate order number if missing or invalid
+        if not fields.get("orderno"):
             doc_id = fields.get("docId", "UNKNOWN")
-            fields["orderno"] = f"NOF-{doc_id}"
+            # Clean the document ID too
+            from validation import clean_order_number
+            cleaned_doc_id = clean_order_number(doc_id) or "UNKNOWN"
+            fields["orderno"] = f"NOF{cleaned_doc_id}"
+            logger.info(f"Generated fallback order number: {fields['orderno']}")
         
         # Enhanced date processing
         fields = self._post_process_dates_enhanced(fields)
@@ -881,5 +924,14 @@ RETURN ONLY JSON. Document text:
             return None
         val = re.sub(r'[^A-Za-z0-9]', '', str(val))
         if not val or len(val) < 4 or (val.isalpha() and not any(c.isdigit() for c in val)):
+            return None
+        return val
+    
+    def _clean_order_number(self, val):
+        """Clean and validate order number value."""
+        if not val:
+            return None
+        val = re.sub(r'[^A-Za-z0-9]', '', str(val))
+        if not val or len(val) < 3:
             return None
         return val 
