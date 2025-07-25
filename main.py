@@ -218,5 +218,5 @@ if __name__ == "__main__":
 
     # Step 9: Run mail.py to send email with output Excel
     print("\nStep 6: Sending email with the output Excel (mail.py)...")
-    run_script("SendMail.py", [supreme_excel_with_patient_and_order_upload])
+    run_script("SendMail.py", [supremesheet_output])
     print("\n✅ All steps finished. Check your mail for the report!")

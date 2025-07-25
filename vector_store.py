@@ -7,7 +7,7 @@ from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain.vectorstores.base import VectorStore
 from langchain.schema import Document
-from langchain_community.embeddings import AzureOpenAIEmbedding
+from langchain_openai import AzureOpenAIEmbeddings
 
 from qdrant_client import QdrantClient, models
 from qdrant_client.models import Distance, VectorParams, PointStruct, SearchParams
@@ -331,7 +331,7 @@ def build_enhanced_vectordb_with_qdrant(all_texts: List[str], collection_name: s
     logger.info(f"Created {len(all_chunks)} quality chunks (avg quality: {avg_quality:.1f})")
     
     # Initialize Azure OpenAI embeddings
-    embeddings = AzureOpenAIEmbedding(
+    embeddings = AzureOpenAIEmbeddings(
         azure_endpoint=azure_endpoint,
         api_key=api_key,
         deployment="text-embedding-ada-002",

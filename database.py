@@ -59,6 +59,23 @@ def ensure_new_columns(conn):
 def insert_order(conn, fields):
     """Insert or update an order record in the database."""
     cur = conn.cursor()
+    
+    # Handle cert_period structure - it can be either a dict or separate fields
+    cert_period = fields.get("cert_period", {})
+    if isinstance(cert_period, dict):
+        cert_period_soe = cert_period.get("soe")
+        cert_period_eoe = cert_period.get("eoe")
+    else:
+        # Fallback to separate fields if cert_period is not a dict
+        cert_period_soe = fields.get("cert_period_soe")
+        cert_period_eoe = fields.get("cert_period_eoe")
+    
+    # Ensure all values are strings or None for database compatibility
+    def safe_value(val):
+        if val is None:
+            return None
+        return str(val)
+    
     cur.execute("""
     INSERT OR REPLACE INTO orders (
         docId, orderno, orderdate, mrn, soc, cert_period_soe, cert_period_eoe,
@@ -66,23 +83,23 @@ def insert_order(conn, fields):
         raw_text, extraction_method, extraction_error, error
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """, (
-    fields.get("docId"),
-    fields.get("orderno"),
-    fields.get("orderdate"),
-    fields.get("mrn"),
-    fields.get("soc"),
-    fields.get("cert_period", {}).get("soe"),
-    fields.get("cert_period", {}).get("eoe"),
+    safe_value(fields.get("docId")),
+    safe_value(fields.get("orderno")),
+    safe_value(fields.get("orderdate")),
+    safe_value(fields.get("mrn")),
+    safe_value(fields.get("soc")),
+    safe_value(cert_period_soe),
+    safe_value(cert_period_eoe),
     json.dumps(fields.get("icd_codes", [])),
     json.dumps(fields.get("icd_codes_validated", [])),
-    fields.get("patient_name"),
-    fields.get("dob"),
-    fields.get("address"),
-    fields.get("patient_sex"),
-    fields.get("raw_text", ""),
-    fields.get("extraction_method", ""),
-    fields.get("extraction_error", ""),
-    fields.get("error")
+    safe_value(fields.get("patient_name")),
+    safe_value(fields.get("dob")),
+    safe_value(fields.get("address")),
+    safe_value(fields.get("patient_sex")),
+    safe_value(fields.get("raw_text", "")),
+    safe_value(fields.get("extraction_method", "")),
+    safe_value(fields.get("extraction_error", "")),
+    safe_value(fields.get("error"))
 ))
     conn.commit()
 

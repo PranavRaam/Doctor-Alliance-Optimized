@@ -25,11 +25,8 @@ class AccuracyFocusedFieldExtractor:
             r'\b(suicide|self-harm|self-injury|attempted suicide)\b',
             r'\b(abuse|domestic violence|assault|battery)\b',
             r'\b(sexual assault|rape|molestation)\b',
-            r'\b(drug overdose|overdose|poisoning)\b',
             r'\b(terrorism|bomb|explosive|weapon)\b',
             r'\b(child abuse|child neglect|pedophilia)\b',
-            r'\b(mental illness|psychosis|schizophrenia|bipolar)\b',
-            r'\b(violence|aggression|anger|rage)\b',
             r'\b(death|fatal|lethal|deadly)\b'
         ]
         
