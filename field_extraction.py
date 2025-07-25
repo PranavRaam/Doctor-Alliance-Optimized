@@ -19,17 +19,6 @@ class AccuracyFocusedFieldExtractor:
         self.config = config or FIELD_EXTRACTION_CONFIG
         self.validator = MedicalFieldValidator()
         
-        # Sensitive content patterns that might trigger restrictions
-        self.sensitive_patterns = [
-            r'\b(murder|homicide|killing|assassination)\b',
-            r'\b(suicide|self-harm|self-injury|attempted suicide)\b',
-            r'\b(abuse|domestic violence|assault|battery)\b',
-            r'\b(sexual assault|rape|molestation)\b',
-            r'\b(terrorism|bomb|explosive|weapon)\b',
-            r'\b(child abuse|child neglect|pedophilia)\b',
-            r'\b(death|fatal|lethal|deadly)\b'
-        ]
-        
         # Initialize Ollama client for fallback
         self.ollama_client = None
         try:
@@ -38,16 +27,7 @@ class AccuracyFocusedFieldExtractor:
         except Exception as e:
             logger.warning(f"Failed to initialize Ollama client: {e}")
     
-    def _detect_sensitive_content(self, text: str) -> bool:
-        """Detect if text contains sensitive content that might trigger restrictions."""
-        text_lower = text.lower()
-        
-        for pattern in self.sensitive_patterns:
-            if re.search(pattern, text_lower, re.IGNORECASE):
-                logger.warning(f"Sensitive content detected in document: {pattern}")
-                return True
-        
-        return False
+
     
     def _extract_with_ollama_fallback(self, text: str, doc_id: str) -> Optional[Dict[str, Any]]:
         """Extract fields using Ollama as fallback for sensitive content."""
@@ -120,21 +100,7 @@ RETURN ONLY JSON. Document text:
             return None
     
     def extract_fields_multi_approach(self, text: str, doc_id: str) -> FieldExtractionResult:
-        """Smart field extraction with optimized approach selection and sensitive content handling."""
-        
-        # Check for sensitive content first
-        if self._detect_sensitive_content(text):
-            logger.warning(f"Sensitive content detected in {doc_id}, using Ollama fallback")
-            ollama_result = self._extract_with_ollama_fallback(text, doc_id)
-            if ollama_result:
-                return FieldExtractionResult(
-                    fields=ollama_result,
-                    confidence=0.70,
-                    method="ollama_fallback",
-                    quality=ExtractionQuality.GOOD
-                )
-            else:
-                logger.error(f"Ollama fallback failed for sensitive content in {doc_id}")
+        """Smart field extraction with optimized approach selection."""
         
         # Quick text analysis to determine best approach
         text_characteristics = self._analyze_text_characteristics(text)
