@@ -608,6 +608,11 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             success_rate = (npi_found/len(final_records)*100) if len(final_records) > 0 else 0
             log_console(f"📊 Success rate: {npi_found}/{len(final_records)} ({success_rate:.1f}%)")
             
+            # Check if filtering was applied
+            from config import should_filter_document_types, get_allowed_document_types
+            should_filter = should_filter_document_types("prima_care")
+            allowed_types = get_allowed_document_types("prima_care")
+            
             if should_filter and allowed_types:
                 log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
             else:

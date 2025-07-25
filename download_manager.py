@@ -38,14 +38,15 @@ class AccuracyFocusedDownloadManager:
         logger.info(f"Starting download of {len(docs_to_download)} documents")
         self.progress_tracker = DownloadProgressTracker(len(docs_to_download))
         
-        # Setup async HTTP session with robust configuration
+        # Setup async HTTP session with robust configuration and SSL bypass
         connector = aiohttp.TCPConnector(
             limit=self.config["connection_pool_size"],
             limit_per_host=self.config["max_concurrent_downloads"],
             ttl_dns_cache=300,
             use_dns_cache=True,
             keepalive_timeout=30,
-            enable_cleanup_closed=True
+            enable_cleanup_closed=True,
+            ssl=False  # Disable SSL verification to bypass certificate issues
         )
         
         timeout = aiohttp.ClientTimeout(
@@ -350,7 +351,7 @@ def download_pdf_from_api(doc_id: str, save_path: str) -> bool:
     url = f"{API_BASE}{doc_id}"
     
     try:
-        response = requests.get(url, headers=AUTH_HEADER, timeout=30)
+        response = requests.get(url, headers=AUTH_HEADER, timeout=30, verify=False)  # Disable SSL verification
         if response.status_code == 200:
             result = response.json()
             
