@@ -63,6 +63,10 @@ if __name__ == "__main__":
     # Import config functions
     from config import get_active_company, show_active_company, set_active_company, list_companies
     
+    # Initialize date variables
+    start_date = None
+    end_date = None
+    
     # Show current active company
     print("🏢 Current Active Company:")
     show_active_company()
