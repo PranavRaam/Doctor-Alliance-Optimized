@@ -91,13 +91,26 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 current_page_doc_ids.add(doc_id)
                 
                 if doc_id not in seen_ids:
-                    seen_ids.add(doc_id)
-                    doc_ids.append(doc_id)
-                    # Store document type with doc_id
-                    if not hasattr(extract_doc_ids_from_inbox, 'doc_types'):
-                        extract_doc_ids_from_inbox.doc_types = {}
-                    extract_doc_ids_from_inbox.doc_types[doc_id] = doc_type
-                    log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type}")
+                    # Filter for 485 documents only
+                    from config import should_filter_document_types, get_allowed_document_types
+                    should_filter = should_filter_document_types("prima_care")  # Hardcode for now
+                    allowed_types = get_allowed_document_types("prima_care")
+                    
+                    is_485_document = False
+                    if should_filter and allowed_types and doc_type:
+                        doc_type_upper = doc_type.upper()
+                        is_485_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                    
+                    if is_485_document or not should_filter:
+                        seen_ids.add(doc_id)
+                        doc_ids.append(doc_id)
+                        # Store document type with doc_id
+                        if not hasattr(extract_doc_ids_from_inbox, 'doc_types'):
+                            extract_doc_ids_from_inbox.doc_types = {}
+                        extract_doc_ids_from_inbox.doc_types[doc_id] = doc_type
+                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ✅ (485 - INCLUDED)")
+                    else:
+                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT 485 - SKIPPED)")
                     
             except Exception as e:
                 log_console(f"⚠️ Error processing row on page {page}: {e}")
@@ -317,14 +330,27 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                             log_console(f"⚠️ Error extracting doc type: {e}")
                             pass
                         
-                        seen_ids.add(doc_id)
-                        doc_ids.append(doc_id)
+                        # Filter for 485 documents only
+                        from config import should_filter_document_types, get_allowed_document_types
+                        should_filter = should_filter_document_types("prima_care")  # Hardcode for now
+                        allowed_types = get_allowed_document_types("prima_care")
                         
-                        # Store document type with doc_id
-                        if not hasattr(extract_doc_ids_from_signed, 'doc_types'):
-                            extract_doc_ids_from_signed.doc_types = {}
-                        extract_doc_ids_from_signed.doc_types[doc_id] = doc_type
-                        log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type}")
+                        is_485_document = False
+                        if should_filter and allowed_types and doc_type:
+                            doc_type_upper = doc_type.upper()
+                            is_485_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                        
+                        if is_485_document or not should_filter:
+                            seen_ids.add(doc_id)
+                            doc_ids.append(doc_id)
+                            
+                            # Store document type with doc_id
+                            if not hasattr(extract_doc_ids_from_signed, 'doc_types'):
+                                extract_doc_ids_from_signed.doc_types = {}
+                            extract_doc_ids_from_signed.doc_types[doc_id] = doc_type
+                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ✅ (485 - INCLUDED)")
+                        else:
+                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT 485 - SKIPPED)")
                 except Exception as e:
                     log_console(f"⚠️ Error extracting doc_id in signed tab: {e}")
                     continue
@@ -737,25 +763,9 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
             records.append(record)
+            filtered_records.append(record)  # All documents at this point are already filtered
             
-            # Filter based on company configuration
-            from config import should_filter_document_types, get_allowed_document_types
-            
-            should_filter = should_filter_document_types(company_key)
-            allowed_types = get_allowed_document_types(company_key)
-            
-            if should_filter and allowed_types:
-                doc_type_upper = document_type.upper() if document_type else ""
-                is_allowed = any(keyword in doc_type_upper for keyword in allowed_types)
-                
-                if is_allowed:
-                    filtered_records.append(record)
-                    log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (ALLOWED - INCLUDED)")
-                else:
-                    log_console(f"❌ {doc_id}  NPI: {npi}  Type: {document_type} (NOT ALLOWED - EXCLUDED)")
-            else:
-                filtered_records.append(record)
-                log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (NO FILTER - INCLUDED)")
+            log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
         
         final_records = filtered_records if filtered_records else records
         combined_df = pd.DataFrame(final_records)
