@@ -3,6 +3,7 @@ import glob
 import pandas as pd
 import requests
 import base64
+import sys
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
@@ -109,14 +110,20 @@ def cleanup_files(xlsx_dir):
 
 # ========== MAIN ==========
 if __name__ == "__main__":
+    # Get input file name from command line arguments
+    input_file = EXCEL_INPUT_PATH  # default
+    
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    
     # 1. Prepare dated output folder
     today_str = datetime.now().strftime("%Y-%m-%d")
     xlsx_dir = os.path.join(today_str, "xlsx")
     os.makedirs(xlsx_dir, exist_ok=True)
 
     # 2. Read Excel
-    print("Reading Excel...")
-    df = pd.read_excel(EXCEL_INPUT_PATH)
+    print(f"Reading Excel: {input_file}")
+    df = pd.read_excel(input_file)
 
     # 3. Replace companyid and Pgcompanyid
     df = replace_ids_with_names(df)

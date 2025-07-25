@@ -3,6 +3,7 @@ import requests
 from datetime import datetime
 import os
 import re
+import sys
 from fuzzywuzzy import fuzz
 import openai
 
@@ -196,7 +197,15 @@ def extract_first_name(full_name):
     return ""
 
 def main():
-    excel_file = "doctoralliance_combined_output.xlsx"
+    # Get input and output file names from command line arguments
+    excel_file = "doctoralliance_combined_output.xlsx"  # default
+    output_file = "supreme_excel.xlsx"  # default
+    
+    if len(sys.argv) > 1:
+        excel_file = sys.argv[1]
+    if len(sys.argv) > 2:
+        output_file = sys.argv[2]
+    
     if not os.path.exists(excel_file):
         print(f"Input file {excel_file} not found!")
         return
@@ -329,9 +338,8 @@ def main():
         output_rows.append(out_row)
 
     out_df = pd.DataFrame(output_rows)
-    out_file = "supreme_excel.xlsx"
-    out_df.to_excel(out_file, index=False)
-    print(f"\n✅ Supreme Excel written: {out_file}")
+    out_df.to_excel(output_file, index=False)
+    print(f"\n✅ Supreme Excel written: {output_file}")
 
 if __name__ == "__main__":
     main()

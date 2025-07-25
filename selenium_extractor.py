@@ -46,11 +46,36 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
         time.sleep(2)
         
         try:
-            WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
-            time.sleep(2)
-            current_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
-        except TimeoutException:
-            log_console("❌ Timeout waiting for inbox table")
+            # Try to wait for the table with retry logic
+            max_retries = 3
+            current_rows = []
+            
+            for retry in range(max_retries):
+                try:
+                    log_console(f"🔄 Attempting to load inbox table (attempt {retry + 1}/{max_retries})")
+                    WebDriverWait(driver, 30).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
+                    time.sleep(3)  # Increased wait time
+                    current_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
+                    
+                    if current_rows:
+                        log_console(f"✅ Successfully loaded {len(current_rows)} rows")
+                        break
+                    else:
+                        log_console(f"⚠️ No rows found on attempt {retry + 1}, retrying...")
+                        driver.refresh()
+                        time.sleep(5)
+                        
+                except TimeoutException as e:
+                    log_console(f"⚠️ Timeout on attempt {retry + 1}: {e}")
+                    if retry < max_retries - 1:
+                        driver.refresh()
+                        time.sleep(5)
+                    else:
+                        log_console("❌ All attempts to load inbox table failed")
+                        break
+                        
+        except Exception as e:
+            log_console(f"❌ Unexpected error loading inbox table: {e}")
             break
             
         if not current_rows:
@@ -91,26 +116,41 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 current_page_doc_ids.add(doc_id)
                 
                 if doc_id not in seen_ids:
-                    # Filter for 485 documents only
-                    from config import should_filter_document_types, get_allowed_document_types
-                    should_filter = should_filter_document_types("prima_care")  # Hardcode for now
-                    allowed_types = get_allowed_document_types("prima_care")
+                    # Get company key from function parameters or use default
+                    company_key = getattr(extract_doc_ids_from_inbox, 'company_key', None)
+                    if not company_key:
+                        # Try to get from config or use prima_care as fallback
+                        from config import get_active_company
+                        try:
+                            active_company = get_active_company()
+                            company_key = active_company.get('key', 'prima_care')
+                            log_console(f"🔍 Debug: Detected company key: {company_key}")
+                        except Exception as e:
+                            company_key = 'prima_care'
+                            log_console(f"⚠️ Debug: Failed to get company key, using fallback: {e}")
                     
-                    is_485_document = False
+                    # Filter for documents based on company configuration
+                    from config import should_filter_document_types, get_allowed_document_types
+                    should_filter = should_filter_document_types(company_key)
+                    allowed_types = get_allowed_document_types(company_key)
+                    
+                    log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}")
+                    
+                    is_allowed_document = False
                     if should_filter and allowed_types and doc_type:
                         doc_type_upper = doc_type.upper()
-                        is_485_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                        is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
                     
-                    if is_485_document or not should_filter:
+                    if is_allowed_document or not should_filter:
                         seen_ids.add(doc_id)
                         doc_ids.append(doc_id)
                         # Store document type with doc_id
                         if not hasattr(extract_doc_ids_from_inbox, 'doc_types'):
                             extract_doc_ids_from_inbox.doc_types = {}
                         extract_doc_ids_from_inbox.doc_types[doc_id] = doc_type
-                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ✅ (485 - INCLUDED)")
+                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ✅ (ALLOWED - INCLUDED)")
                     else:
-                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT 485 - SKIPPED)")
+                        log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT ALLOWED - SKIPPED)")
                     
             except Exception as e:
                 log_console(f"⚠️ Error processing row on page {page}: {e}")
@@ -330,17 +370,32 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                             log_console(f"⚠️ Error extracting doc type: {e}")
                             pass
                         
-                        # Filter for 485 documents only
-                        from config import should_filter_document_types, get_allowed_document_types
-                        should_filter = should_filter_document_types("prima_care")  # Hardcode for now
-                        allowed_types = get_allowed_document_types("prima_care")
+                        # Get company key from function parameters or use default
+                        company_key = getattr(extract_doc_ids_from_signed, 'company_key', None)
+                        if not company_key:
+                            # Try to get from config or use prima_care as fallback
+                            from config import get_active_company
+                            try:
+                                active_company = get_active_company()
+                                company_key = active_company.get('key', 'prima_care')
+                                log_console(f"🔍 Debug: Detected company key: {company_key}")
+                            except Exception as e:
+                                company_key = 'prima_care'
+                                log_console(f"⚠️ Debug: Failed to get company key, using fallback: {e}")
                         
-                        is_485_document = False
+                        # Filter for documents based on company configuration
+                        from config import should_filter_document_types, get_allowed_document_types
+                        should_filter = should_filter_document_types(company_key)
+                        allowed_types = get_allowed_document_types(company_key)
+                        
+                        log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}")
+                        
+                        is_allowed_document = False
                         if should_filter and allowed_types and doc_type:
                             doc_type_upper = doc_type.upper()
-                            is_485_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                            is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
                         
-                        if is_485_document or not should_filter:
+                        if is_allowed_document or not should_filter:
                             seen_ids.add(doc_id)
                             doc_ids.append(doc_id)
                             
@@ -348,9 +403,9 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                             if not hasattr(extract_doc_ids_from_signed, 'doc_types'):
                                 extract_doc_ids_from_signed.doc_types = {}
                             extract_doc_ids_from_signed.doc_types[doc_id] = doc_type
-                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ✅ (485 - INCLUDED)")
+                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ✅ (ALLOWED - INCLUDED)")
                         else:
-                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT 485 - SKIPPED)")
+                            log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ❌ (NOT ALLOWED - SKIPPED)")
                 except Exception as e:
                     log_console(f"⚠️ Error extracting doc_id in signed tab: {e}")
                     continue
@@ -536,7 +591,7 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--page-load-strategy=eager")
     options.add_argument("--aggressive-cache-discard")
     options.add_argument("--memory-pressure-off")
-    options.add_argument("--disable-javascript")
+    # Removed --disable-javascript to prevent timeout issues
     options.add_argument("--disable-animations")
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-default-apps")
@@ -545,11 +600,16 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--disable-logging")
     options.add_argument("--log-level=3")
     options.add_argument("--silent")
+    # Add stability options
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--disable-web-security")
+    options.add_argument("--allow-running-insecure-content")
+    options.add_argument("--disable-features=VizDisplayCompositor")
     
     driver = webdriver.Chrome(options=options)
     driver.maximize_window()
-    driver.set_page_load_timeout(5)
-    driver.implicitly_wait(1)
+    driver.set_page_load_timeout(30)  # Increased from 5 to 30 seconds
+    driver.implicitly_wait(5)  # Increased from 1 to 5 seconds
 
     try:
         login_to_da(da_url, da_login, da_password, driver)
@@ -568,7 +628,18 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         
         # Inbox
         log_console("🔍 Inbox extraction")
-        driver.get("https://live.doctoralliance.com/all/Inbox")
+        try:
+            driver.get("https://live.doctoralliance.com/all/Inbox")
+            time.sleep(5)  # Wait for page to load completely
+            log_console("✅ Successfully navigated to inbox page")
+        except Exception as e:
+            log_console(f"❌ Failed to navigate to inbox page: {e}")
+            raise e
+            
+        # Set company key for extraction functions
+        extract_doc_ids_from_inbox.company_key = company_key
+        extract_doc_ids_from_signed.company_key = company_key
+        
         inbox_doc_ids, inbox_doc_types = extract_doc_ids_from_inbox(driver, start_date, end_date)
         
         # Signed
@@ -610,8 +681,8 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             # Check if filtering was applied
             from config import should_filter_document_types, get_allowed_document_types
-            should_filter = should_filter_document_types("prima_care")
-            allowed_types = get_allowed_document_types("prima_care")
+            should_filter = should_filter_document_types(company_key)
+            allowed_types = get_allowed_document_types(company_key)
             
             if should_filter and allowed_types:
                 log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")

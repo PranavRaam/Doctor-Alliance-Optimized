@@ -7,6 +7,7 @@ import math
 import base64
 import tempfile
 import os
+import sys
 
 # These will be set dynamically based on company configuration
 PATIENT_CREATE_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/create"
@@ -572,7 +573,16 @@ def upload_pdf_from_document_data(doc_data, order_guid):
 
 
 def main():
-    df = pd.read_excel("supreme_excel.xlsx")
+    # Get input file name from command line arguments
+    input_file = "supreme_excel.xlsx"  # default
+    
+    if len(sys.argv) > 1:
+        input_file = sys.argv[1]
+    
+    # Set company API URLs based on active company
+    set_company_api_urls()
+    
+    df = pd.read_excel(input_file)
     if 'PATIENTUPLOAD_STATUS' not in df.columns:
         df['PATIENTUPLOAD_STATUS'] = ""
     if 'PATIENTUPLOAD_REMARKS' not in df.columns:
@@ -605,7 +615,8 @@ def main():
 
     # Refill patient info and update PatientExist if found
     df = refill_patient_info(df)
-    df.to_excel("supreme_excel_with_patient_upload.xlsx", index=False)
+    output_file_with_patients = input_file.replace('.xlsx', '_with_patient_upload.xlsx')
+    df.to_excel(output_file_with_patients, index=False)
 
     # 2. Second pass: Convert OTHER_SIGNABLE to OTHER, and create patients for ALL PatientExist==False rows (if not already created)
     for idx, row in df.iterrows():
@@ -631,7 +642,7 @@ def main():
 
     # Refill patient info again after second pass
     df = refill_patient_info(df)
-    df.to_excel("supreme_excel_with_patient_upload.xlsx", index=False)
+    df.to_excel(output_file_with_patients, index=False)
 
     # Download patients once for episode lookup
     try:
@@ -657,8 +668,9 @@ def main():
             df.at[idx, 'ORDERUPLOAD_STATUS'] = "SKIPPED"
             df.at[idx, 'ORDER_CREATION_REMARK'] = "Order skipped: Patient does not exist for this row."
 
-    df.to_excel("supreme_excel_with_patient_and_order_upload.xlsx", index=False)
-    print("Upload process complete. Check supreme_excel_with_patient_and_order_upload.xlsx")
+    output_file_final = input_file.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
+    df.to_excel(output_file_final, index=False)
+    print(f"Upload process complete. Check {output_file_final}")
 
 
 if __name__ == "__main__":

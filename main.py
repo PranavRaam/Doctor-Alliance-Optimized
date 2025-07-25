@@ -51,8 +51,24 @@ def cleanup_old_excels():
         "doctoralliance_combined_output.xlsx",
         "supreme_excel.xlsx"
     ]
+    
+    # Delete specific files
     for f in files_to_delete:
         if os.path.exists(f):
+            try:
+                os.remove(f)
+                print(f"[CLEANUP] Deleted old file: {f}")
+            except Exception as e:
+                print(f"[CLEANUP] Could not delete {f}: {e}")
+    
+    # Delete company-specific files using glob patterns
+    import glob
+    patterns = [
+        "doctoralliance_combined_output_*.xlsx",
+        "supreme_excel_*.xlsx"
+    ]
+    for pattern in patterns:
+        for f in glob.glob(pattern):
             try:
                 os.remove(f)
                 print(f"[CLEANUP] Deleted old file: {f}")
@@ -137,10 +153,10 @@ def process_single_company(company_key, start_date, end_date):
     
     # Step 6: Run supremesheet.py using the combined Excel as input
     print(f"\nStep 4: Running supremesheet.py on combined output for {company['name']}...")
-    run_script("supremesheet.py", [combined_excel])
+    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
+    run_script("supremesheet.py", [combined_excel, supremesheet_output])
     
     # Step 7: Confirm output
-    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
     if os.path.exists(supremesheet_output):
         print(f"\n🎉 Supreme sheet is ready for {company['name']}: {supremesheet_output}")
         
