@@ -230,6 +230,10 @@ def main():
         patient_name = row.get("patientName") or doc_api.get("patientName", "")
         sendDate = try_date(doc_api.get("sendDate"))
         care_provider_name = doc_api.get("careProvider", "")
+        
+        # Use sendDate as fallback when orderdate is empty
+        if not orderdate or str(orderdate).strip() == "" or str(orderdate).lower() in ["nan", "none"]:
+            orderdate = sendDate
 
         # SEX/GENDER LOGIC
         patient_sex = row.get("patient_sex", "")

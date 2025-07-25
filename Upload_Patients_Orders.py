@@ -243,9 +243,27 @@ def refill_patient_info(df):
 
 
 def build_order_payload(row):
+    # Enhanced handling of orderdate and sendDate
+    orderdate = row.get("orderdate")
+    sendDate = row.get("sendDate")
+    
+    # Handle various empty value cases
+    if pd.isna(orderdate) or orderdate is None or str(orderdate).strip() == "":
+        orderdate = None
+    else:
+        orderdate = str(orderdate).strip()
+    
+    if pd.isna(sendDate) or sendDate is None or str(sendDate).strip() == "":
+        sendDate = None
+    else:
+        sendDate = str(sendDate).strip()
+    
+    # Use sendDate as fallback when orderdate is empty
+    final_order_date = orderdate or sendDate or ""
+    
     return {
         "orderNo": row.get("orderno", ""),
-        "orderDate": row.get("orderdate") or row.get("sendDate", ""),
+        "orderDate": final_order_date,
 
         "startOfCare": row.get("soc", ""),
         "episodeStartDate": row.get("cert_period_soe", ""),
