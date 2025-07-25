@@ -584,7 +584,7 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         filtered_records = []
         for idx, doc_id in enumerate(all_doc_ids):
             if idx % 10 == 0:  # Only log every 10th document to reduce output
-            log_console(f"[{idx+1}/{len(all_doc_ids)}] Doc ID: {doc_id}")
+                log_console(f"[{idx+1}/{len(all_doc_ids)}] Doc ID: {doc_id}")
             
             # Get document type from frontend (already extracted)
             document_type = all_doc_types.get(doc_id, "")
