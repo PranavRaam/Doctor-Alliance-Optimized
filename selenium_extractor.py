@@ -452,102 +452,30 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     
     return doc_ids, getattr(extract_doc_ids_from_signed, 'doc_types', {})
 
-def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
-    if not hasattr(extract_npi_and_document_type_with_session_refresh, 'counter'):
-        extract_npi_and_document_type_with_session_refresh.counter = 0
+def extract_npi_only(doc_id, driver):
+    if not hasattr(extract_npi_only, 'counter'):
+        extract_npi_only.counter = 0
         
-    extract_npi_and_document_type_with_session_refresh.counter += 1
+    extract_npi_only.counter += 1
     
-    if extract_npi_and_document_type_with_session_refresh.counter % 25 == 1:
+    if extract_npi_only.counter % 50 == 1:
         go_to_signed_list(driver)
-        time.sleep(0.3)
-    
-    # Enable network logging to capture API calls
-    driver.execute_script("""
-        if (!window.apiCalls) {
-            window.apiCalls = [];
-            const originalFetch = window.fetch;
-            const originalXHR = window.XMLHttpRequest;
-            
-            // Intercept fetch calls
-            window.fetch = function(...args) {
-                const url = args[0];
-                const options = args[1] || {};
-                const callInfo = {
-                    method: options.method || 'GET',
-                    url: url,
-                    timestamp: new Date().toISOString()
-                };
-                window.apiCalls.push(callInfo);
-                
-                return originalFetch.apply(this, args).then(response => {
-                    // Try to capture response data
-                    response.clone().text().then(text => {
-                        try {
-                            const data = JSON.parse(text);
-                            callInfo.response = data;
-                        } catch (e) {
-                            callInfo.response = text.substring(0, 200); // First 200 chars
-                        }
-                    });
-                    return response;
-                });
-            };
-            
-            // Intercept XHR calls
-            const originalOpen = XMLHttpRequest.prototype.open;
-            const originalSend = XMLHttpRequest.prototype.send;
-            
-            XMLHttpRequest.prototype.open = function(method, url) {
-                this._apiCall = {
-                    method: method,
-                    url: url,
-                    timestamp: new Date().toISOString()
-                };
-                window.apiCalls.push(this._apiCall);
-                return originalOpen.apply(this, arguments);
-            };
-            
-            XMLHttpRequest.prototype.send = function(data) {
-                const xhr = this;
-                const originalOnReadyStateChange = xhr.onreadystatechange;
-                
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4) {
-                        try {
-                            const response = xhr.responseText;
-                            const data = JSON.parse(response);
-                            xhr._apiCall.response = data;
-                        } catch (e) {
-                            xhr._apiCall.response = xhr.responseText.substring(0, 200);
-                        }
-                    }
-                    if (originalOnReadyStateChange) {
-                        originalOnReadyStateChange.apply(xhr, arguments);
-                    }
-                };
-                
-                return originalSend.apply(this, arguments);
-            };
-        }
-    """)
+        time.sleep(0.1)
     
     detail_url = f"https://backoffice.doctoralliance.com/Documents2/Show/{doc_id}"
-    log_console(f"🔗 Navigating to: {detail_url}")
     
     try:
         driver.get(detail_url)
-        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     except:
-        log_console("❌ Timeout loading doc detail page (possibly session lost).")
-        return "", ""
+        return ""
         
     actual_url = driver.current_url
     if actual_url != detail_url:
         log_console(f"❌ Navigation failed! Landed on: {actual_url}")
-        return "", ""
+        return ""
     
-    # Extract NPI
+    # Extract NPI only
     xpaths_to_try = [
         "/html/body/div/div/div[2]/div[3]/div/div[3]/p",
         "//span[contains(text(), 'NPI')]/following-sibling::span",
@@ -561,12 +489,11 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
     npi = ""
     for xpath in xpaths_to_try:
         try:
-            element = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, xpath)))
+            element = WebDriverWait(driver, 0.5).until(EC.presence_of_element_located((By.XPATH, xpath)))
             text = element.text.strip()
             match = re.search(r'\b\d{10}\b', text)
             if match:
                 npi = match.group(0)
-                log_console(f"✅ Found NPI at {xpath}: {npi}")
                 break
         except Exception:
             continue
@@ -580,108 +507,8 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
             match = re.search(r'\b\d{10}\b', text)
             if match:
                 npi = match.group(0)
-            else:
-                log_console(f"❌ No NPI found via Selenium for doc {doc_id}")
-            
-    # Extract Document Type - Look for actual document type in the page
-    document_type = ""
     
-    # First try to find document type in the main content area
-    doc_type_xpaths = [
-        "//div[contains(@class, 'document-details')]//span[contains(text(), 'Type')]/following-sibling::span",
-        "//div[contains(@class, 'document-info')]//span[contains(text(), 'Type')]/following-sibling::span",
-        "//div[contains(@class, 'doc-details')]//span[contains(text(), 'Type')]/following-sibling::span",
-        "//span[contains(text(), 'Document Type')]/following-sibling::span",
-        "//label[contains(text(), 'Document Type')]/following-sibling::*",
-        "//div[contains(text(), 'Document Type')]/following-sibling::*",
-        "//*[contains(text(), 'Document Type')]/following-sibling::*",
-        "//span[contains(text(), 'Type')]/following-sibling::span",
-        "//div[contains(@class, 'document-type')]//span",
-        "//div[contains(@class, 'doc-type')]//span"
-    ]
-    
-    for xpath in doc_type_xpaths:
-        try:
-            element = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, xpath)))
-            text = element.text.strip()
-            if text and text.lower() not in ['document type', 'type', ''] and len(text) < 50:  # Avoid very long text
-                document_type = text
-                log_console(f"✅ Found Document Type via XPath: {document_type}")
-                break
-        except Exception:
-            continue
-    
-    # If not found via XPath, try to extract from the page source more carefully
-    if not document_type:
-        page_source = driver.page_source
-        
-        # Debug: Log what we're finding in the page source
-        log_console(f"🔍 Debug: Searching page source for document type patterns...")
-        
-        # Look for document type in JSON-like structures
-        json_patterns = [
-            r'"documentType"\s*:\s*"([^"]+)"',
-            r'"docType"\s*:\s*"([^"]+)"',
-            r'"type"\s*:\s*"([^"]+)"',
-            r'documentType["\']?\s*:\s*["\']([^"\']+)["\']',
-            r'docType["\']?\s*:\s*["\']([^"\']+)["\']',
-            r'type["\']?\s*:\s*["\']([^"\']+)["\']'
-        ]
-        
-        for pattern in json_patterns:
-            match = re.search(pattern, page_source, re.IGNORECASE)
-            if match:
-                potential_type = match.group(1).strip()
-                log_console(f"🔍 Debug: Found potential document type: '{potential_type}'")
-                # Filter out HTTP methods and other unwanted values
-                if potential_type and potential_type.upper() not in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'] and len(potential_type) < 50:
-                    document_type = potential_type
-                    log_console(f"✅ Found Document Type via JSON: {document_type}")
-                    break
-                else:
-                    log_console(f"❌ Debug: Rejected '{potential_type}' (HTTP method or too long)")
-        
-        # If still not found, look for specific document type keywords
-        if not document_type:
-            specific_patterns = [
-                r'485[^"\s]*',
-                r'CERT[^"\s]*',
-                r'RECERT[^"\s]*',
-                r'ORDER[^"\s]*',
-                r'OTHER[^"\s]*'
-            ]
-            
-            for pattern in specific_patterns:
-                match = re.search(pattern, page_source, re.IGNORECASE)
-                if match:
-                    potential_type = match.group(0).strip()
-                    if potential_type and len(potential_type) < 50:
-                        document_type = potential_type
-                        log_console(f"✅ Found Document Type via keyword: {document_type}")
-                        break
-            
-    # Log captured API calls
-    try:
-        api_calls = driver.execute_script("return window.apiCalls || [];")
-        if api_calls:
-            log_console(f"🔍 Debug: Captured {len(api_calls)} API calls:")
-            for i, call in enumerate(api_calls[-5:]):  # Show last 5 calls
-                log_console(f"   {i+1}. {call['method']} {call['url']}")
-                if 'response' in call and call['response']:
-                    if isinstance(call['response'], dict):
-                        # Look for document type in response
-                        if 'documentType' in call['response']:
-                            log_console(f"      📄 Found documentType in response: {call['response']['documentType']}")
-                        if 'docType' in call['response']:
-                            log_console(f"      📄 Found docType in response: {call['response']['docType']}")
-                        if 'type' in call['response']:
-                            log_console(f"      📄 Found type in response: {call['response']['type']}")
-                    else:
-                        log_console(f"      📄 Response preview: {str(call['response'])[:100]}...")
-    except Exception as e:
-        log_console(f"⚠️ Debug: Could not retrieve API calls: {e}")
-    
-    return npi, document_type
+    return npi
 
 def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None, company_key=None):
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -706,14 +533,23 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--disable-background-timer-throttling")
     options.add_argument("--disable-renderer-backgrounding")
     options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--page-load-strategy=none")
+    options.add_argument("--page-load-strategy=eager")
     options.add_argument("--aggressive-cache-discard")
     options.add_argument("--memory-pressure-off")
+    options.add_argument("--disable-javascript")
+    options.add_argument("--disable-animations")
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-translate")
+    options.add_argument("--disable-logging")
+    options.add_argument("--log-level=3")
+    options.add_argument("--silent")
     
     driver = webdriver.Chrome(options=options)
     driver.maximize_window()
-    driver.set_page_load_timeout(10)
-    driver.implicitly_wait(2)
+    driver.set_page_load_timeout(5)
+    driver.implicitly_wait(1)
 
     try:
         login_to_da(da_url, da_login, da_password, driver)
@@ -723,11 +559,11 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         wait_and_find_element(driver, By.CLASS_NAME, "select2-search__field").send_keys("Users")
         WebDriverWait(driver, 8).until(EC.visibility_of_element_located((By.XPATH, "//li[contains(@id, 'select2-SearchType-result')][1]"))).click()
         wait_and_find_element(driver, By.CLASS_NAME, "btn-success").click()
-        time.sleep(1)
+        time.sleep(0.5)
         wait_and_find_element(driver, By.CLASS_NAME, "linkedRow").click()
-        time.sleep(1)
+        time.sleep(0.5)
         wait_and_find_element(driver, By.LINK_TEXT, "Impersonate").click()
-        time.sleep(2)
+        time.sleep(1)
         driver.switch_to.window(driver.window_handles[1])
         
         # Inbox
@@ -747,19 +583,14 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         records = []
         filtered_records = []
         for idx, doc_id in enumerate(all_doc_ids):
+            if idx % 10 == 0:  # Only log every 10th document to reduce output
             log_console(f"[{idx+1}/{len(all_doc_ids)}] Doc ID: {doc_id}")
             
             # Get document type from frontend (already extracted)
             document_type = all_doc_types.get(doc_id, "")
-            log_console(f"📄 Document Type from frontend: {document_type}")
             
-            # Still need to get NPI from individual document pages
-            npi, page_document_type = extract_npi_and_document_type_with_session_refresh(doc_id, driver)
-            
-            # Use page document type if frontend extraction failed
-            if not document_type and page_document_type:
-                document_type = page_document_type
-                log_console(f"📄 Using document type from page: {document_type}")
+            # Only get NPI from individual document pages (no document type extraction needed)
+            npi = extract_npi_only(doc_id, driver)
             
             record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
             records.append(record)
