@@ -204,9 +204,18 @@ def show_current_config():
     companies_to_process = get_companies_to_process()
     if len(companies_to_process) == 1:
         company = get_company_config(companies_to_process[0])
+        company_key = companies_to_process[0]
         print(f"🏢 Single Company: {company['name']}")
         print(f"   PG Company ID: {company['pg_company_id']}")
         print(f"   Helper ID: {company['helper_id']}")
+        
+        # Show document type filtering status
+        filter_config = get_document_type_filter(company_key)
+        if filter_config['enabled']:
+            print(f"   📄 Document Type Filter: ENABLED")
+            print(f"      Allowed Types: {', '.join(filter_config['allowed_types'])}")
+        else:
+            print(f"   📄 Document Type Filter: DISABLED (process all types)")
     else:
         print(f"🏢 Multiple Companies ({len(companies_to_process)}):")
         for company_key in companies_to_process:
@@ -214,6 +223,14 @@ def show_current_config():
             print(f"   • {company['name']} ({company_key})")
             print(f"     PG Company ID: {company['pg_company_id']}")
             print(f"     Helper ID: {company['helper_id']}")
+            
+            # Show document type filtering status for each company
+            filter_config = get_document_type_filter(company_key)
+            if filter_config['enabled']:
+                print(f"     📄 Document Type Filter: ENABLED")
+                print(f"        Allowed Types: {', '.join(filter_config['allowed_types'])}")
+            else:
+                print(f"     📄 Document Type Filter: DISABLED")
     
     print("=" * 50)
 
@@ -278,3 +295,52 @@ def show_active_company():
     print(f"   PG Company ID: {company['pg_company_id']}")
     print(f"   Helper ID: {company['helper_id']}")
     print(f"   Description: {company['description']}")
+
+# ===========================================
+# DOCUMENT TYPE FILTERING CONFIGURATION
+# ===========================================
+
+# Document type filtering for specific companies
+DOCUMENT_TYPE_FILTERS = {
+    "prima_care": {
+        "enabled": True,
+        "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT"],
+        "description": "Only process 485 document types for Prima Care"
+    },
+    "housecall_md": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Housecall MD"
+    },
+    "los_cerros": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Los Cerros"
+    },
+    "rocky_mountain": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Rocky Mountain"
+    }
+}
+
+def get_document_type_filter(company_key=None):
+    """Get document type filter configuration for a specific company."""
+    if company_key is None:
+        company_key = ACTIVE_COMPANY
+    
+    return DOCUMENT_TYPE_FILTERS.get(company_key, {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "No filtering configured"
+    })
+
+def should_filter_document_types(company_key=None):
+    """Check if document type filtering is enabled for a company."""
+    filter_config = get_document_type_filter(company_key)
+    return filter_config.get("enabled", False)
+
+def get_allowed_document_types(company_key=None):
+    """Get list of allowed document types for a company."""
+    filter_config = get_document_type_filter(company_key)
+    return filter_config.get("allowed_types", [])

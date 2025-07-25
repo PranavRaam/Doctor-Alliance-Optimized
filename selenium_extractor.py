@@ -266,15 +266,15 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     return doc_ids
 
 
-def extract_npi_with_session_refresh(doc_id, driver):
+def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
     # Optimized session refresh - only do it every 25 documents
-    if not hasattr(extract_npi_with_session_refresh, 'counter'):
-        extract_npi_with_session_refresh.counter = 0
+    if not hasattr(extract_npi_and_document_type_with_session_refresh, 'counter'):
+        extract_npi_and_document_type_with_session_refresh.counter = 0
         
-    extract_npi_with_session_refresh.counter += 1
+    extract_npi_and_document_type_with_session_refresh.counter += 1
     
     # Only refresh session every 25 documents instead of every document
-    if extract_npi_with_session_refresh.counter % 25 == 1:
+    if extract_npi_and_document_type_with_session_refresh.counter % 25 == 1:
         go_to_signed_list(driver)
         time.sleep(0.3)  # Reduced from 1.1 to 0.3
     
@@ -293,13 +293,14 @@ def extract_npi_with_session_refresh(doc_id, driver):
         
     except:
         log_console("❌ Timeout loading doc detail page (possibly session lost).")
-        return ""
+        return "", ""
         
     actual_url = driver.current_url
     if actual_url != detail_url:
         log_console(f"❌ Navigation failed! Landed on: {actual_url}")
-        return ""
+        return "", ""
     
+    # Extract NPI
     # Optimized XPath order - put most successful matches first based on your output
     xpaths_to_try = [
         "/html/body/div/div/div[2]/div[3]/div/div[3]/p",  # This one is working for your docs
@@ -339,8 +340,53 @@ def extract_npi_with_session_refresh(doc_id, driver):
                 npi = match.group(0)
             else:
                 log_console(f"❌ No NPI found via Selenium for doc {doc_id}")
+    
+    # Extract Document Type
+    document_type = ""
+    doc_type_xpaths = [
+        "//span[contains(text(), 'Document Type')]/following-sibling::span",
+        "//label[contains(text(), 'Document Type')]/following-sibling::*",
+        "//div[contains(text(), 'Document Type')]/following-sibling::*",
+        "//*[contains(text(), 'Document Type')]/following-sibling::*",
+        "//span[contains(text(), 'Type')]/following-sibling::span",
+        "//div[contains(@class, 'document-type')]//span",
+        "//div[contains(@class, 'doc-type')]//span"
+    ]
+    
+    for xpath in doc_type_xpaths:
+        try:
+            element = WebDriverWait(driver, 1).until(
+                EC.presence_of_element_located((By.XPATH, xpath))
+            )
+            text = element.text.strip()
+            if text and text.lower() not in ['document type', 'type', '']:
+                document_type = text
+                log_console(f"✅ Found Document Type: {document_type}")
+                break
+        except Exception:
+            continue
+    
+    # If not found via XPath, try regex on page source
+    if not document_type:
+        page_source = driver.page_source
+        # Look for common document type patterns
+        doc_type_patterns = [
+            r'"documentType"\s*:\s*"([^"]+)"',
+            r'documentType["\']?\s*:\s*["\']([^"\']+)["\']',
+            r'type["\']?\s*:\s*["\']([^"\']+)["\']',
+            r'485[^"\s]*',  # Look for 485 specifically
+            r'CERT[^"\s]*',  # Look for CERT
+            r'RECERT[^"\s]*'  # Look for RECERT
+        ]
+        
+        for pattern in doc_type_patterns:
+            match = re.search(pattern, page_source, re.IGNORECASE)
+            if match:
+                document_type = match.group(1) if len(match.groups()) > 0 else match.group(0)
+                log_console(f"✅ Found Document Type via regex: {document_type}")
+                break
             
-    return npi
+    return npi, document_type
 
 
 def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None, company_key=None):
@@ -409,19 +455,49 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         log_console(f"📝 Extracting NPI from {len(all_doc_ids)} documents...")
         
         records = []
+        filtered_records = []
         for idx, doc_id in enumerate(all_doc_ids):
             log_console(f"[{idx+1}/{len(all_doc_ids)}] Doc ID: {doc_id}")
-            npi = extract_npi_with_session_refresh(doc_id, driver)
-            records.append({"Document ID": doc_id, "NPI": npi})
-            log_console(f"➡️  {doc_id}  NPI: {npi}")
+            npi, document_type = extract_npi_and_document_type_with_session_refresh(doc_id, driver)
             
-        combined_df = pd.DataFrame(records)
+            record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
+            records.append(record)
+            
+            # Filter based on company configuration
+            from config import should_filter_document_types, get_allowed_document_types
+            
+            should_filter = should_filter_document_types(company_key)
+            allowed_types = get_allowed_document_types(company_key)
+            
+            if should_filter and allowed_types:
+                # Check if document type matches any allowed types
+                doc_type_upper = document_type.upper() if document_type else ""
+                is_allowed = any(keyword in doc_type_upper for keyword in allowed_types)
+                
+                if is_allowed:
+                    filtered_records.append(record)
+                    log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (ALLOWED - INCLUDED)")
+                else:
+                    log_console(f"❌ {doc_id}  NPI: {npi}  Type: {document_type} (NOT ALLOWED - EXCLUDED)")
+            else:
+                # No filtering enabled, include all records
+                filtered_records.append(record)
+                log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (NO FILTER - INCLUDED)")
+        
+        # Use filtered records for output
+        final_records = filtered_records if filtered_records else records
+        combined_df = pd.DataFrame(final_records)
         combined_df.to_excel(output_path, index=False)
         log_console(f"✅ Combined Excel created at: {output_path}\nRows: {len(combined_df)}")
         
         # Show some statistics
-        npi_found = len([r for r in records if r['NPI']])
-        log_console(f"📊 Success rate: {npi_found}/{len(records)} ({npi_found/len(records)*100:.1f}%)")
+        npi_found = len([r for r in final_records if r['NPI']])
+        log_console(f"📊 Success rate: {npi_found}/{len(final_records)} ({npi_found/len(final_records)*100:.1f}%)")
+        
+        if should_filter and allowed_types:
+            log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
+        else:
+            log_console(f"📊 No filtering applied: {len(final_records)} documents processed")
         
     except Exception as e:
         log_console(f"❌ Extraction failed: {e}")
