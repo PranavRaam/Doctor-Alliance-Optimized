@@ -304,7 +304,7 @@ def show_active_company():
 DOCUMENT_TYPE_FILTERS = {
     "prima_care": {
         "enabled": True,
-        "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT"],
+        "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT", "485CERT", "485 CERT"],
         "description": "Only process 485 document types for Prima Care"
     },
     "housecall_md": {

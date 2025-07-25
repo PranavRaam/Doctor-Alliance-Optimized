@@ -283,7 +283,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                             log_console(f"   Column {i+1}: {cell_text[:30]}...")
                 except Exception as e:
                     log_console(f"⚠️ Debug: Could not analyze table structure: {e}")
-            
+                
             for row in table_rows:
                 try:
                     doc_id = row.find_element(By.CSS_SELECTOR, "td:nth-child(10) span.text-muted").text.strip()
@@ -344,7 +344,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             
     except Exception as e:
         log_console(f"❌ Error scraping Signed tab: {e}")
-    
+        
     # Retry if no documents found
     if len(doc_ids) == 0:
         log_console("⚠️ No documents found in signed tab, retrying with longer wait...")
@@ -556,7 +556,7 @@ def extract_npi_and_document_type_with_session_refresh(doc_id, driver):
                 npi = match.group(0)
             else:
                 log_console(f"❌ No NPI found via Selenium for doc {doc_id}")
-    
+            
     # Extract Document Type - Look for actual document type in the page
     document_type = ""
     
@@ -728,7 +728,12 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             log_console(f"📄 Document Type from frontend: {document_type}")
             
             # Still need to get NPI from individual document pages
-            npi, _ = extract_npi_and_document_type_with_session_refresh(doc_id, driver)
+            npi, page_document_type = extract_npi_and_document_type_with_session_refresh(doc_id, driver)
+            
+            # Use page document type if frontend extraction failed
+            if not document_type and page_document_type:
+                document_type = page_document_type
+                log_console(f"📄 Using document type from page: {document_type}")
             
             record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
             records.append(record)
