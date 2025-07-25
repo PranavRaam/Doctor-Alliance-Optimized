@@ -80,7 +80,7 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "06/15/2025",
+    "start_date": "06/01/2025",
     "end_date": "06/30/2025",
 }
 
@@ -90,6 +90,7 @@ MULTIPLE_COMPANIES = [
     # "housecall_md",
     # "los_cerros", 
     # "rocky_mountain"
+    "prima_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -149,6 +150,11 @@ COMPANIES = {
         "pg_company_id": "4e594a84-7340-469e-82fb-b41b91930db5",
         "helper_id": "ihelperph4215"
     },
+    "prima_care": {
+        "name" : "Prima Care",
+        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
+        "helper_id": "ihelperph6233"
+    },
     # EXAMPLE: How to add a new company
     # "your_new_company": {
     #     "name": "Your New Company Name",
@@ -161,7 +167,7 @@ COMPANIES = {
 DEFAULT_COMPANY = "housecall_md"
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "los_cerros"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+ACTIVE_COMPANY = "prima_care"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
 
 # Function to get companies to process
 def get_companies_to_process():
