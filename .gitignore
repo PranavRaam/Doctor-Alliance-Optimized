@@ -71,7 +71,7 @@ doctoralliance_orders_accuracy_focused.db
 # Excel Files (Generated Output)
 *.xlsx
 *.xls
-*.csv
+# *.csv
 Combined/*.xlsx
 Combined/*.xls
 Combined/*.csv
