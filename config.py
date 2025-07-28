@@ -80,8 +80,8 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "06/01/2025",
-    "end_date": "06/30/2025",
+    "start_date": "07/01/2025",
+    "end_date": "07/26/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
@@ -90,7 +90,7 @@ MULTIPLE_COMPANIES = [
     # "housecall_md",
     # "los_cerros", 
     # "rocky_mountain"
-    "prima_care"
+    # "prima_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -167,7 +167,7 @@ COMPANIES = {
 DEFAULT_COMPANY = "housecall_md"
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "prima_care"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+ACTIVE_COMPANY = "los_cerros"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
 
 # Function to get companies to process
 def get_companies_to_process():
