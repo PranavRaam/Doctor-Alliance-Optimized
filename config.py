@@ -91,6 +91,16 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
+    "hawthorn_adult_medicine",
+    "hawthorn_family_practice",
+    "hawthorn_internal_medicine",
+    "hawthorn_rheumatology",
+    "hawthorn_nephrology",
+    "hawthorn_cardiology",
+    "hawthorn_pulmonary",
+    "hawthorn_urology",
+    "hawthorn_orthopedics",
+    "prima_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -135,32 +145,56 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "housecall_md": {
-        "name": "Housecall MD",
-        "pg_company_id": "bc3a6a28-dd03-4cf3-95ba-2c5976619818",
-        "helper_id": "dhelperph621"
+    "hawthorn_adult_medicine": {
+        "name": "Hawthorn Medical Associates Adult Medicine",
+        "pg_company_id": "994b8f76-cacc-4bdc-8847-da64704753c1",
+        "helper_id": "ihelperph7243"
     },
-    "los_cerros": {
-        "name": "Los Cerros Medical LLC",
-        "pg_company_id": "9d8d2765-0b51-489b-868c-a217b4283c62",
-        "helper_id": "ihelperph7221"
+    "hawthorn_family_practice": {
+        "name": "Hawthorn Medical Associates - Family Practice",
+        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
+        "helper_id": "ihelperph7243"
     },
-    "rocky_mountain": {
-        "name": "Rocky Mountain Medical and Healthcare",
-        "pg_company_id": "4e594a84-7340-469e-82fb-b41b91930db5",
-        "helper_id": "ihelperph4215"
+    "hawthorn_internal_medicine": {
+        "name": "Hawthorn Medical Associates - Internal Medicine",
+        "pg_company_id": "161d97e7-4d84-4ed0-8d99-4147b75f8988",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_rheumatology": {
+        "name": "Hawthorn Medical Associates -Rheumatology",
+        "pg_company_id": "013063d3-7c50-4f89-96cc-009b29b5e220",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_nephrology": {
+        "name": "Hawthorn Medical Associates - Nephrology",
+        "pg_company_id": "3bef7fdb-bf2d-49d6-944c-4edfecd704b7",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_cardiology": {
+        "name": "Hawthorn Medical Associates-Cardiology",
+        "pg_company_id": "8669b221-8ff2-476d-a160-fdd9ad22215e",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_pulmonary": {
+        "name": "Hawthorn Medical Associates-Pulmonary",
+        "pg_company_id": "06be9a40-66ea-4962-b1d6-ba665404cb92",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_urology": {
+        "name": "Hawthorn Medical Associates -Urology",
+        "pg_company_id": "090aa18a-0fac-4eb9-b9ee-6c10d013221f",
+        "helper_id": "ihelperph7243"
+    },
+    "hawthorn_orthopedics": {
+        "name": "Hawthorn Orthopedics Center",
+        "pg_company_id": "e860283c-3b20-42be-a911-c8cf57b7075a",
+        "helper_id": "ihelperph7243"
     },
     "prima_care": {
-        "name" : "Prima Care",
+        "name": "Prima Care",
         "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
         "helper_id": "ihelperph6233"
-    },
-    # EXAMPLE: How to add a new company
-    # "your_new_company": {
-    #     "name": "Your New Company Name",
-    #     "pg_company_id": "your-pg-company-id-here",
-    #     "helper_id": "your-helper-id-here"
-    # }
+    }
 }
 
 # Default company to use
