@@ -198,10 +198,10 @@ COMPANIES = {
 }
 
 # Default company to use
-DEFAULT_COMPANY = "housecall_md"
+DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "los_cerros"  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+ACTIVE_COMPANY = ""  # Options: "housecall_md", "los_cerros", "rocky_mountain"
 
 # Function to get companies to process
 def get_companies_to_process():
