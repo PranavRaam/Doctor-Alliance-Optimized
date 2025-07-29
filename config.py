@@ -91,16 +91,9 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "hawthorn_adult_medicine",
-    "hawthorn_family_practice",
-    "hawthorn_internal_medicine",
-    "hawthorn_rheumatology",
-    "hawthorn_nephrology",
-    "hawthorn_cardiology",
-    "hawthorn_pulmonary",
-    "hawthorn_urology",
-    "hawthorn_orthopedics",
-    "prima_care"
+    "welllife_family_medicine",
+    "paragon_medical",
+    "brownfield_family"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -137,7 +130,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "housecall_md", "los_cerros", "rocky_mountain"
+# Available company keys: "welllife_family_medicine", "paragon_medical", "brownfield_family"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -145,55 +138,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "hawthorn_adult_medicine": {
-        "name": "Hawthorn Medical Associates Adult Medicine",
-        "pg_company_id": "994b8f76-cacc-4bdc-8847-da64704753c1",
-        "helper_id": "ihelperph7243"
+    "welllife_family_medicine": {
+        "name": "WellLife Family Medicine",
+        "pg_company_id": "1a959ae5-7ba2-47e5-b044-64690eeced93",
+        "helper_id": "dallianceph7218",
+        "description": "WellLife Family Medicine - Primary care and family medicine services"
     },
-    "hawthorn_family_practice": {
-        "name": "Hawthorn Medical Associates - Family Practice",
-        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
-        "helper_id": "ihelperph7243"
+    "paragon_medical": {
+        "name": "Paragon Medical Associates",
+        "pg_company_id": "84e35202-3422-4de4-b5cb-efe5461b1312",
+        "helper_id": "ihelperph4215",
+        "description": "Paragon Medical Associates - Comprehensive medical services"
     },
-    "hawthorn_internal_medicine": {
-        "name": "Hawthorn Medical Associates - Internal Medicine",
-        "pg_company_id": "161d97e7-4d84-4ed0-8d99-4147b75f8988",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_rheumatology": {
-        "name": "Hawthorn Medical Associates -Rheumatology",
-        "pg_company_id": "013063d3-7c50-4f89-96cc-009b29b5e220",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_nephrology": {
-        "name": "Hawthorn Medical Associates - Nephrology",
-        "pg_company_id": "3bef7fdb-bf2d-49d6-944c-4edfecd704b7",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_cardiology": {
-        "name": "Hawthorn Medical Associates-Cardiology",
-        "pg_company_id": "8669b221-8ff2-476d-a160-fdd9ad22215e",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_pulmonary": {
-        "name": "Hawthorn Medical Associates-Pulmonary",
-        "pg_company_id": "06be9a40-66ea-4962-b1d6-ba665404cb92",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_urology": {
-        "name": "Hawthorn Medical Associates -Urology",
-        "pg_company_id": "090aa18a-0fac-4eb9-b9ee-6c10d013221f",
-        "helper_id": "ihelperph7243"
-    },
-    "hawthorn_orthopedics": {
-        "name": "Hawthorn Orthopedics Center",
-        "pg_company_id": "e860283c-3b20-42be-a911-c8cf57b7075a",
-        "helper_id": "ihelperph7243"
-    },
-    "prima_care": {
-        "name": "Prima Care",
-        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
-        "helper_id": "ihelperph6233"
+    "brownfield_family": {
+        "name": "Brownfield Family Physicians", 
+        "pg_company_id": "b62429db-642c-4fdb-9bf3-29e381d20e22",
+        "helper_id": "dallianceph7218",
+        "description": "Brownfield Family Physicians - Family medicine and primary care"
     }
 }
 
@@ -336,6 +297,21 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
+    "welllife_family_medicine": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for WellLife Family Medicine"
+    },
+    "paragon_medical": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Paragon Medical Associates"
+    },
+    "brownfield_family": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Brownfield Family Physicians"
+    },
     "prima_care": {
         "enabled": True,
         "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT", "485CERT", "485 CERT"],
