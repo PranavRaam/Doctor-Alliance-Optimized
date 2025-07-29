@@ -40,7 +40,7 @@ def set_company_api_urls(company_key=None):
     global PATIENT_API
     urls = get_api_urls_for_company(company_key)
     PATIENT_API = urls["patient_api"]
-    print(f"🔧 Set API URLs for company: {company_key}")
+    print(f"[CONFIG] Set API URLs for company: {company_key}")
     print(f"   Patient API: {PATIENT_API}")
     print(f"   Order API: {urls['order_api']}")
 
@@ -575,12 +575,16 @@ def upload_pdf_from_document_data(doc_data, order_guid):
 def main():
     # Get input file name from command line arguments
     input_file = "supreme_excel.xlsx"  # default
+    company_key = None  # default
     
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
     
-    # Set company API URLs based on active company
-    set_company_api_urls()
+    if len(sys.argv) > 2:
+        company_key = sys.argv[2]
+    
+    # Set company API URLs based on active company or provided company key
+    set_company_api_urls(company_key)
     
     df = pd.read_excel(input_file)
     if 'PATIENTUPLOAD_STATUS' not in df.columns:

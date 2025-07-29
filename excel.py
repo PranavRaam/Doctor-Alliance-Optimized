@@ -85,17 +85,15 @@ company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
 # Read the Excel file
-input_file = "supreme_excel_rocky_mountain_with_patient_and_order_upload.xlsx"
+input_file = "supreme_excel_hawthorn_adult_medicine.xlsx"
 df = pd.read_excel(input_file)
 
-# Filter for only failed and skipped records
-df = df[df["PATIENTUPLOAD_STATUS"].isin(["FALSE", "SKIPPED"])]
-
-print(f"📊 Processing {len(df)} failed/skipped records...")
+# Since PATIENTUPLOAD_STATUS doesn't exist, we'll process all records and identify issues
+print(f"📊 Processing {len(df)} total records...")
 
 # Check if we have any records to process
 if len(df) == 0:
-    print("❌ No failed/skipped records found. Exiting.")
+    print("❌ No records found. Exiting.")
     exit()
 
 # Create output dataframe with selected columns
@@ -128,14 +126,14 @@ def get_reason(row):
 
 df_out["reason"] = df.apply(get_reason, axis=1)
 
-# Filter for failed/skipped records only (exclude successful ones)
+# Filter for records with issues only (exclude successful ones)
 df_out = df_out[df_out["reason"] != "Success"]
 
-print(f"📊 Found {len(df_out)} failed/skipped records with issues out of {len(df)} total failed/skipped records")
+print(f"📊 Found {len(df_out)} records with issues out of {len(df)} total records")
 
 # Check if we have any records with issues
 if len(df_out) == 0:
-    print("❌ No failed/skipped records with issues found. Exiting.")
+    print("❌ No records with issues found. Exiting.")
     exit()
 
 # Group by PG company only
@@ -143,7 +141,7 @@ grouped = df_out.groupby("pg name")
 
 print(f"🏢 Found {len(grouped)} unique PG companies:")
 for pg_name, group in grouped:
-    print(f"   - {pg_name}: {len(group)} failed records")
+    print(f"   - {pg_name}: {len(group)} records with issues")
 
 # Create one Excel file with multiple sheets
 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -166,6 +164,6 @@ with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
 
 print(f"\n📁 Created single file: {output_filename}")
 print(f"📋 Total sheets: {len(grouped)}")
-print(f"📊 Total failed records: {len(df_out)}")
+print(f"📊 Total records with issues: {len(df_out)}")
 
-print(f"\n🎯 Combined failed records processing complete!")
+print(f"\n🎯 Combined records with issues processing complete!")

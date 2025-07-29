@@ -349,7 +349,33 @@ def process_single_company(company_key, start_date, end_date):
         
         # Step 9: Run Upload_Patients_Orders.py on the supreme Excel output
         print(f"\nStep 6: Uploading Patients and Orders for {company['name']}...")
-        run_script("Upload_Patients_Orders.py", [supremesheet_output])
+        try:
+            run_script("Upload_Patients_Orders.py", [supremesheet_output, company_key])
+            
+            # Verify that the expected output files were created
+            expected_files = [
+                supremesheet_output.replace('.xlsx', '_with_patient_upload.xlsx'),
+                supremesheet_output.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
+            ]
+            
+            created_files = []
+            for expected_file in expected_files:
+                if os.path.exists(expected_file):
+                    created_files.append(expected_file)
+                    print(f"✅ Created: {expected_file}")
+                else:
+                    print(f"❌ Missing: {expected_file}")
+            
+            if len(created_files) == 2:
+                print(f"\n✅ Upload_Patients_Orders.py finished successfully for {company['name']}.")
+                print(f"   Created files: {', '.join(created_files)}")
+            else:
+                print(f"\n⚠️  Upload_Patients_Orders.py completed but some files are missing for {company['name']}.")
+                print(f"   Expected: {len(expected_files)} files, Created: {len(created_files)} files")
+            
+        except Exception as e:
+            print(f"\n❌ Error in Upload_Patients_Orders.py for {company['name']}: {e}")
+            return False
         
         print(f"\n✅ Upload_Patients_Orders.py finished for {company['name']}.")
         return True
@@ -390,12 +416,47 @@ if __name__ == "__main__":
                 success = process_single_company(company_key, start_date, end_date)
                 if success:
                     successful_companies.append(company_key)
+                    
+                    # Send email for each successful company
+                    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
+                    if os.path.exists(supremesheet_output):
+                        print(f"\n📧 Sending email for {company_key}...")
+                        run_script("SendMail.py", [supremesheet_output])
+                        print(f"✅ Email sent for {company_key}")
+                    
+                    # Also send failed records Excel if it exists
+                    failed_records_pattern = f"*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
+                    failed_records_files = glob.glob(failed_records_pattern)
+                    if failed_records_files:
+                        latest_failed_records = max(failed_records_files, key=os.path.getmtime)
+                        print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
+                        run_script("SendMail.py", [latest_failed_records])
+                        print(f"✅ Failed records report sent for {company_key}")
+                        
             except Exception as e:
                 print(f"❌ Error processing {company_key}: {e}")
         
         print(f"\n✅ Processing complete! Successfully processed {len(successful_companies)} out of {len(companies_to_process)} companies.")
         if successful_companies:
             print(f"Successful companies: {', '.join(successful_companies)}")
+            
+            # Send summary email for all companies
+            print(f"\n📧 Sending summary email for all processed companies...")
+            try:
+                # Create a summary of all successful companies
+                summary_file = f"processing_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                with open(summary_file, 'w') as f:
+                    f.write(f"Processing Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write(f"Date Range: {start_date} to {end_date}\n")
+                    f.write(f"Successfully processed: {len(successful_companies)} out of {len(companies_to_process)} companies\n")
+                    f.write(f"Successful companies: {', '.join(successful_companies)}\n")
+                    f.write(f"Failed companies: {', '.join(set(companies_to_process) - set(successful_companies))}\n")
+                
+                # Send summary email
+                run_script("SendMail.py", [summary_file])
+                print(f"✅ Summary email sent")
+            except Exception as e:
+                print(f"❌ Error sending summary email: {e}")
     else:
         # Single company processing
         company_key = companies_to_process[0]
