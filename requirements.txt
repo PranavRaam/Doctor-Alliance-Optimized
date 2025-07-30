@@ -1,32 +1,53 @@
 # PDF Processing Libraries
-PyMuPDF==1.23.8
-pdfplumber==0.10.3
-pdfminer.six==20231228
+PyMuPDF
+pdfplumber
+pdfminer.six
 
 # OCR Libraries
-pytesseract==0.3.10
-Pillow==10.1.0
-easyocr==1.7.0
+pytesseract
+Pillow
+easyocr
 
 # Data Processing
-numpy==1.24.3
-pandas==2.0.3
+numpy
+pandas
 
 # Web Scraping
-selenium==4.15.2
-requests==2.31.0
+selenium
+requests
 
 # Database
 sqlite3
 
 # Utilities
-python-dotenv==1.0.0
-openpyxl==3.1.2
-xlsxwriter==3.1.9
+python-dotenv
+openpyxl
+xlsxwriter
 
 # Logging and Configuration
 logging
 configparser
 
+# Google API for email
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+
+# Vector Database
+qdrant-client
+
+# AI/ML Libraries
+openai
+azure-ai-formrecognizer
+azure-ai-textanalytics
+azure-cognitiveservices-vision-computervision
+
+# Additional Utilities
+python-dateutil
+beautifulsoup4
+lxml
+html5lib
+
 # Optional: For better performance
-# torch==2.1.0  # Uncomment if using GPU for EasyOCR 
+# torch  # Uncomment if using GPU for EasyOCR 

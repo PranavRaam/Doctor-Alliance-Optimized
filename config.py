@@ -91,11 +91,10 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "clinics_of_north_texas",
-    "doctors_at_home",
-    "spectrum_health_solutions",
-    "royal_vp",
-    "citywide_housecalls"
+    "trucare",
+    "acohealth",
+    "health_quality_primary_care",
+    "caring"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -132,7 +131,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "clinics_of_north_texas", "doctors_at_home", "spectrum_health_solutions", "royal_vp", "citywide_housecalls"
+# Available company keys: "trucare", "acohealth", "health_quality_primary_care", "caring"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -140,35 +139,29 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "clinics_of_north_texas": {
-        "name": "CLINICS OF NORTH TEXAS LLP",
-        "pg_company_id": "398b825d-5e6d-4a86-88df-79992a36f536",
-        "helper_id": "sbensonph924",
-        "description": "CLINICS OF NORTH TEXAS LLP - Medical clinics and healthcare services"
+    "trucare": {
+        "name": "Trucare",
+        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
+        "helper_id": "ihelperph7244",
+        "description": "Trucare - Healthcare and medical services"
     },
-    "doctors_at_home": {
-        "name": "Doctors at Home - Mary Snellings MD",
-        "pg_company_id": "de385408-1cd6-46a2-be58-ff4b8eeeddc7",
-        "helper_id": "handrewph27",
-        "description": "Doctors at Home - Mary Snellings MD - Home healthcare services"
+    "acohealth": {
+        "name": "AcoHealth",
+        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
+        "helper_id": "dallianceph125",
+        "description": "AcoHealth - Healthcare and medical services"
     },
-    "spectrum_health_solutions": {
-        "name": "Spectrum Health Solutions (Community First Primary Care)",
-        "pg_company_id": "6f4180aa-b472-4d5c-b7aa-98e06bb4fd6f",
-        "helper_id": "ihelperph12232",
-        "description": "Spectrum Health Solutions (Community First Primary Care) - Primary care services"
+    "health_quality_primary_care": {
+        "name": "Health Quality Primary Care",
+        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
+        "helper_id": "ihelperph7245",
+        "description": "Health Quality Primary Care - Primary care services"
     },
-    "royal_vp": {
-        "name": "Royal V.P., LLC",
-        "pg_company_id": "eaba3c1c-217f-458d-aa2f-172e3ffbab1e",
-        "helper_id": "ihelperph4214",
-        "description": "Royal V.P., LLC - Healthcare and medical services"
-    },
-    "citywide_housecalls": {
-        "name": "CityWide Housecalls, LLC",
-        "pg_company_id": "534ca7a5-2db0-4c75-8988-89f73064c5e5",
-        "helper_id": "ihelperph1021",
-        "description": "CityWide Housecalls, LLC - House call medical services"
+    "caring": {
+        "name": "Caring",
+        "pg_company_id": "03657233-8677-4c81-92c8-c19c3f64fc84",
+        "helper_id": "ihelperph524",
+        "description": "Caring - Healthcare and medical services"
     }
 }
 
