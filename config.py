@@ -91,9 +91,9 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "applemd",
-    "wound_centrics",
-    "visiting_practitioners"
+    "grace_at_home",
+    "covenant_care",
+    "md_primary_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -130,7 +130,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "applemd", "wound_centrics", "visiting_practitioners"
+# Available company keys: "grace_at_home", "covenant_care", "md_primary_care"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -138,23 +138,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "applemd": {
-        "name": "APPLEMD",
-        "pg_company_id": "83de8c79-1a28-4d0b-90bc-5deaf95949e5",
-        "helper_id": "ihelperph1024",
-        "description": "APPLEMD - Medical services"
+    "grace_at_home": {
+        "name": "Grace at Home",
+        "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
+        "helper_id": "adoctorph9211",
+        "description": "Grace at Home - Home healthcare and medical services"
     },
-    "wound_centrics": {
-        "name": "WoundCentrics, LLC",
-        "pg_company_id": "0367ce80-57a9-45e7-8afe-18f665a6a640",
-        "helper_id": "tthriftph1024",
-        "description": "WoundCentrics, LLC - Wound care services"
+    "covenant_care": {
+        "name": "Covenant Care",
+        "pg_company_id": "ec35b120-0883-4d1f-b63d-89bd43d6d89e",
+        "helper_id": "ihelperph7241",
+        "description": "Covenant Care - Comprehensive healthcare services"
     },
-    "visiting_practitioners": {
-        "name": "Visiting Practitioners And Palliative Care LLC",
-        "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
-        "helper_id": "ihelperph1242",
-        "description": "Visiting Practitioners And Palliative Care LLC - Palliative care services"
+    "md_primary_care": {
+        "name": "MD Primary Care",
+        "pg_company_id": "29e46ad6-8ca8-400b-b049-48c17c0b831d",
+        "helper_id": "ihelperph5211",
+        "description": "MD Primary Care - Primary care and family medicine services"
     }
 }
 
@@ -162,7 +162,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = ""  # Options: "applemd", "wound_centrics", "visiting_practitioners"
+ACTIVE_COMPANY = ""  # Options: "housecall_md", "los_cerros", "rocky_mountain"
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -297,20 +297,20 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
-    "applemd": {
+    "grace_at_home": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for APPLEMD"
+        "description": "Process all document types for Grace at Home"
     },
-    "wound_centrics": {
+    "covenant_care": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for WoundCentrics, LLC"
+        "description": "Process all document types for Covenant Care"
     },
-    "visiting_practitioners": {
+    "md_primary_care": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Visiting Practitioners And Palliative Care LLC"
+        "description": "Process all document types for MD Primary Care"
     },
     "prima_care": {
         "enabled": True,
