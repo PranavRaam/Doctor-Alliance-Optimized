@@ -73,7 +73,7 @@ def replace_ids_with_names(df):
     
     return df
 
-def send_patient_script_mail(to_emails, cc_emails, excel_path):
+def send_patient_script_mail(to_emails, cc_emails, excel_path, subject="PATIENT SCRIPT"):
     creds = Credentials(
         None,
         refresh_token=REFRESH_TOKEN,
@@ -87,7 +87,7 @@ def send_patient_script_mail(to_emails, cc_emails, excel_path):
     message['From'] = FROM_EMAIL
     message['To'] = ', '.join(to_emails)
     message['Cc'] = ', '.join(cc_emails)
-    message['Subject'] = "PATIENT SCRIPT"
+    message['Subject'] = subject
     body_html = "<p>Please find attached the output Excel.</p>"
     message.attach(MIMEText(body_html, 'html'))
     if excel_path and os.path.isfile(excel_path):
@@ -126,7 +126,8 @@ def cleanup_files(xlsx_dir):
         "supreme_excel_with_patient_and_order_upload.xlsx",
         "doctoralliance_orders_final.xlsx",
         "doctoralliance_combined_output.xlsx",
-        "PATIENT_SCRIPT_output.xlsx"
+        "PATIENT_SCRIPT_output.xlsx",
+        "*_PROCESSED.xlsx"  # New naming convention
     ]
     for fname in files_to_delete:
         fpath = os.path.join(xlsx_dir, fname)
@@ -171,14 +172,34 @@ if __name__ == "__main__":
         if 'PRACTICEName' not in df.columns:
             df['PRACTICEName'] = "N/A"
 
-    # 4. Save as new Excel for emailing
-    excel_out_path = os.path.join(xlsx_dir, "PATIENT_SCRIPT_output.xlsx")
+    # 4. Save as new Excel for emailing with better naming
+    base_filename = os.path.basename(input_file)
+    name_without_ext = os.path.splitext(base_filename)[0]
+    
+    # Determine the type of file and create appropriate name and subject
+    if "failed" in input_file.lower() or "housecall" in input_file.lower():
+        # This is a failed records report
+        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        email_subject = "FAILED RECORDS REPORT"
+    elif "with_patient_and_order_upload" in input_file.lower():
+        # This is the final upload file
+        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        email_subject = "PATIENT SCRIPT - FINAL UPLOAD RESULTS"
+    elif "with_patient_upload" in input_file.lower():
+        # This is the patient upload file
+        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        email_subject = "PATIENT SCRIPT - PATIENT UPLOAD RESULTS"
+    else:
+        # This is a main supreme Excel file
+        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        email_subject = "PATIENT SCRIPT - MAIN RESULTS"
+    
     df.to_excel(excel_out_path, index=False)
     print(f"Excel saved as {excel_out_path}")
 
-    # 5. Send mail
-    print("Sending email...")
-    send_patient_script_mail(TO_EMAILS, CC_EMAILS, excel_out_path)
+    # 5. Send mail with appropriate subject
+    print(f"Sending email with subject: {email_subject}...")
+    send_patient_script_mail(TO_EMAILS, CC_EMAILS, excel_out_path, email_subject)
 
     # 6. Cleanup files
     print("Cleaning up old files...")

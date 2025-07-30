@@ -465,12 +465,26 @@ if __name__ == "__main__":
                 if success:
                     successful_companies.append(company_key)
                     
-                    # Send email for each successful company
+                    # Send emails for each successful company
                     supremesheet_output = f"supreme_excel_{company_key}.xlsx"
                     if os.path.exists(supremesheet_output):
-                        print(f"\n📧 Sending email for {company_key}...")
+                        print(f"\n📧 Sending main supreme Excel for {company_key}...")
                         run_script("SendMail.py", [supremesheet_output])
-                        print(f"✅ Email sent for {company_key}")
+                        print(f"✅ Main supreme Excel sent for {company_key}")
+                    
+                    # Send upload files if they exist
+                    upload_files = [
+                        f"supreme_excel_{company_key}_with_patient_upload.xlsx",
+                        f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+                    ]
+                    
+                    for upload_file in upload_files:
+                        if os.path.exists(upload_file):
+                            print(f"\n📧 Sending upload file: {upload_file}")
+                            run_script("SendMail.py", [upload_file])
+                            print(f"✅ Upload file sent: {upload_file}")
+                        else:
+                            print(f"⚠️  Upload file not found: {upload_file}")
                     
                     # Also send failed records Excel if it exists
                     failed_records_pattern = f"*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
@@ -511,11 +525,25 @@ if __name__ == "__main__":
         success = process_single_company(company_key, start_date, end_date)
         
         if success:
-            # Step 9: Run mail.py to send email with output Excel
+            # Send main supreme Excel
             supremesheet_output = f"supreme_excel_{company_key}.xlsx"
-            print(f"\nStep 6: Sending email with the output Excel (mail.py)...")
+            print(f"\nStep 6: Sending main supreme Excel...")
             run_script("SendMail.py", [supremesheet_output])
-            print("\n✅ All steps finished. Check your mail for the report!")
+            print("✅ Main supreme Excel sent!")
+            
+            # Send upload files if they exist
+            upload_files = [
+                f"supreme_excel_{company_key}_with_patient_upload.xlsx",
+                f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+            ]
+            
+            for upload_file in upload_files:
+                if os.path.exists(upload_file):
+                    print(f"\n📧 Sending upload file: {upload_file}")
+                    run_script("SendMail.py", [upload_file])
+                    print(f"✅ Upload file sent: {upload_file}")
+                else:
+                    print(f"⚠️  Upload file not found: {upload_file}")
             
             # Also send failed records Excel if it exists
             # Look for files with PG company name and date range pattern
@@ -526,6 +554,8 @@ if __name__ == "__main__":
                 print(f"\n📧 Sending failed records report: {latest_failed_records}")
                 run_script("SendMail.py", [latest_failed_records])
                 print("✅ Failed records report sent!")
+            
+            print("\n✅ All steps finished. Check your mail for the reports!")
         else:
             print("\n❌ Processing failed. Check logs for details.")
     
