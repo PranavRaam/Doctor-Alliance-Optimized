@@ -9,6 +9,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
+import concurrent.futures
+import threading
+from queue import Queue
+import asyncio
+import aiohttp
 
 def log_console(msg):
     print(msg)
@@ -726,35 +731,38 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     return doc_ids, getattr(extract_doc_ids_from_signed, 'doc_types', {})
 
 def extract_npi_only(doc_id, driver):
+    """Optimized NPI extraction with reduced page loads and faster processing."""
+    # Thread-safe counter
     if not hasattr(extract_npi_only, 'counter'):
         extract_npi_only.counter = 0
+        extract_npi_only.lock = threading.Lock()
         
-    extract_npi_only.counter += 1
+    with extract_npi_only.lock:
+        extract_npi_only.counter += 1
+        current_counter = extract_npi_only.counter
     
-    if extract_npi_only.counter % 50 == 1:
+    # Reduced frequency of page refreshes
+    if current_counter % 100 == 1:
         go_to_signed_list(driver)
-        time.sleep(0.1)
+        time.sleep(0.05)  # Reduced sleep time
     
     detail_url = f"https://backoffice.doctoralliance.com/Documents2/Show/{doc_id}"
     
     try:
         driver.get(detail_url)
-        WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        # Reduced wait time for faster processing
+        WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
     except:
         return ""
         
     actual_url = driver.current_url
     if actual_url != detail_url:
-        log_console(f"❌ Navigation failed! Landed on: {actual_url}")
-        return ""
+        return ""  # Reduced logging for speed
     
-    # Extract NPI only
+    # Optimized NPI extraction with faster XPath queries
     xpaths_to_try = [
-        "/html/body/div/div/div[2]/div[3]/div/div[3]/p",
         "//span[contains(text(), 'NPI')]/following-sibling::span",
         "//p[contains(text(), 'NPI')]/span",
-        "/html/body/div/div/div[2]/div[2]/div[5]/div/div[4]/p[1]/span[2]",
-        "/html/body/div/div/div[2]/div[3]/div/div[4]/p[1]/span[2]",
         "//div[contains(@class, 'physician')]//span[contains(text(), '1')]",
         "//*[contains(text(), '1') and string-length(normalize-space(.)) = 10]"
     ]
@@ -762,7 +770,8 @@ def extract_npi_only(doc_id, driver):
     npi = ""
     for xpath in xpaths_to_try:
         try:
-            element = WebDriverWait(driver, 0.5).until(EC.presence_of_element_located((By.XPATH, xpath)))
+            # Reduced wait time for faster processing
+            element = WebDriverWait(driver, 0.3).until(EC.presence_of_element_located((By.XPATH, xpath)))
             text = element.text.strip()
             match = re.search(r'\b\d{10}\b', text)
             if match:
@@ -772,6 +781,7 @@ def extract_npi_only(doc_id, driver):
             continue
             
     if not npi:
+        # Faster page source extraction
         text = driver.page_source
         match = re.search(r"\[(\d{10})\]", text)
         if match:
@@ -824,10 +834,50 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--allow-running-insecure-content")
     options.add_argument("--disable-features=VizDisplayCompositor")
     
+    # Additional performance optimizations
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-client-side-phishing-detection")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-hang-monitor")
+    options.add_argument("--disable-prompt-on-repost")
+    options.add_argument("--disable-sync")
+    options.add_argument("--disable-translate")
+    options.add_argument("--metrics-recording-only")
+    options.add_argument("--no-first-run")
+    options.add_argument("--safebrowsing-disable-auto-update")
+    options.add_argument("--enable-automation")
+    options.add_argument("--password-store=basic")
+    options.add_argument("--use-mock-keychain")
+    options.add_argument("--force-device-scale-factor=1")
+    options.add_argument("--high-dpi-support=1")
+    options.add_argument("--force-color-profile=srgb")
+    options.add_argument("--disable-low-res-tiling")
+    options.add_argument("--disable-partial-raster")
+    options.add_argument("--disable-software-rasterizer")
+    options.add_argument("--disable-threaded-animation")
+    options.add_argument("--disable-threaded-scrolling")
+    options.add_argument("--disable-checker-imaging")
+    options.add_argument("--disable-new-content-rendering-timeout")
+    options.add_argument("--disable-image-animation-resync")
+    options.add_argument("--disable-ipc-flooding-protection")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-backgrounding-occluded-windows")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-renderer-backgrounding")
+    options.add_argument("--disable-features=TranslateUI,BlinkGenPropertyTrees")
+    options.add_argument("--disable-ipc-flooding-protection")
+    options.add_argument("--enable-features=NetworkService,NetworkServiceLogging")
+    options.add_argument("--force-fieldtrials=*BackgroundTracing/default/")
+    options.add_argument("--memory-pressure-off")
+    options.add_argument("--max_old_space_size=4096")
+    
     driver = webdriver.Chrome(options=options)
     driver.maximize_window()
-    driver.set_page_load_timeout(30)  # Increased from 5 to 30 seconds
-    driver.implicitly_wait(5)  # Increased from 1 to 5 seconds
+    driver.set_page_load_timeout(15)  # Reduced for faster failure detection
+    driver.implicitly_wait(2)  # Reduced for faster processing
+    driver.set_script_timeout(10)  # Set script timeout
 
     try:
         login_to_da(da_url, da_login, da_password, driver)
@@ -871,21 +921,51 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         
         records = []
         filtered_records = []
-        for idx, doc_id in enumerate(all_doc_ids):
-            if idx % 10 == 0:  # Only log every 10th document to reduce output
-                log_console(f"[{idx+1}/{len(all_doc_ids)}] Doc ID: {doc_id}")
+        
+        # Optimized batch processing
+        batch_size = 20  # Process documents in batches
+        total_batches = (len(all_doc_ids) + batch_size - 1) // batch_size
+        
+        log_console(f"🚀 Processing {len(all_doc_ids)} documents in {total_batches} batches of {batch_size}")
+        
+        for batch_idx in range(total_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min(start_idx + batch_size, len(all_doc_ids))
+            batch_doc_ids = all_doc_ids[start_idx:end_idx]
             
-            # Get document type from frontend (already extracted)
-            document_type = all_doc_types.get(doc_id, "")
+            log_console(f"📦 Processing batch {batch_idx + 1}/{total_batches} ({len(batch_doc_ids)} documents)")
             
-            # Only get NPI from individual document pages (no document type extraction needed)
-            npi = extract_npi_only(doc_id, driver)
+            # Process batch with multiple threads
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                # Submit all NPI extraction tasks for this batch
+                future_to_doc_id = {
+                    executor.submit(extract_npi_only, doc_id, driver): doc_id 
+                    for doc_id in batch_doc_ids
+                }
+                
+                # Collect results as they complete
+                for future in concurrent.futures.as_completed(future_to_doc_id):
+                    doc_id = future_to_doc_id[future]
+                    try:
+                        npi = future.result()
+                        document_type = all_doc_types.get(doc_id, "")
+                        
+                        record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
+                        records.append(record)
+                        filtered_records.append(record)
+                        
+                        log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
+                        
+                    except Exception as e:
+                        log_console(f"❌ Error processing {doc_id}: {e}")
+                        # Add record with empty NPI
+                        record = {"Document ID": doc_id, "NPI": "", "Document Type": all_doc_types.get(doc_id, "")}
+                        records.append(record)
+                        filtered_records.append(record)
             
-            record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
-            records.append(record)
-            filtered_records.append(record)  # All documents at this point are already filtered
-            
-            log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
+            # Progress update
+            processed = len(records)
+            log_console(f"📊 Progress: {processed}/{len(all_doc_ids)} ({processed/len(all_doc_ids)*100:.1f}%)")
         
         final_records = filtered_records if filtered_records else records
         combined_df = pd.DataFrame(final_records)
