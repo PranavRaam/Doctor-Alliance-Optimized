@@ -46,11 +46,8 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
         current_url = driver.current_url
         log_console(f"📄 Inbox page {page} (Found {len(doc_ids)} total docs) - URL: {current_url}")
         
-        # Check if we've already processed this URL (loop detection)
-        if current_url in processed_urls:
-            log_console(f"🛑 Already processed URL: {current_url}")
-            break
-        processed_urls.add(current_url)
+        # For inbox, we don't use URL-based loop detection since the URL stays the same
+        # We rely on document ID tracking and consecutive empty pages instead
         
         time.sleep(2)
         
@@ -68,6 +65,18 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                     
                     if current_rows:
                         log_console(f"✅ Successfully loaded {len(current_rows)} rows")
+                        # Debug: Show first row structure
+                        if page == 1 and len(current_rows) > 0:
+                            try:
+                                first_row = current_rows[0]
+                                cells = first_row.find_elements(By.TAG_NAME, "td")
+                                log_console(f"🔍 Debug: Inbox table has {len(cells)} columns")
+                                for i, cell in enumerate(cells):
+                                    cell_text = cell.text.strip()
+                                    if cell_text:
+                                        log_console(f"   Column {i+1}: {cell_text[:50]}...")
+                            except Exception as e:
+                                log_console(f"⚠️ Debug: Could not analyze first row: {e}")
                         break
                     else:
                         log_console(f"⚠️ No rows found on attempt {retry + 1}, retrying...")
@@ -99,13 +108,27 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             try:
                 cells = row.find_elements(By.TAG_NAME, "td")
                 if len(cells) < 9:
+                    log_console(f"⚠️ Row has only {len(cells)} cells, skipping")
                     continue
                     
-                received_on = cells[7].text.strip()
+                # Try to find received date in different columns
+                received_on = ""
+                for col_idx in [8, 7, 6]:  # Try different column positions (column 8 first based on debug output)
+                    if col_idx < len(cells):
+                        received_on = cells[col_idx].text.strip()
+                        if received_on and "/" in received_on:
+                            break
+                
                 if not received_on:
+                    log_console(f"⚠️ No received date found in row")
                     continue
                     
-                received_date = datetime.strptime(received_on, "%m/%d/%Y")
+                try:
+                    received_date = datetime.strptime(received_on, "%m/%d/%Y")
+                except ValueError:
+                    log_console(f"⚠️ Invalid date format: {received_on}")
+                    continue
+                    
                 if received_date < start_cutoff_date:
                     stop_flag = True
                     break
@@ -113,14 +136,27 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 if end_cutoff_date and received_date > end_cutoff_date:
                     continue
                     
-                doc_id = cells[8].text.strip()
+                # Try to find doc_id in different columns
+                doc_id = ""
+                for col_idx in [9, 8, 10]:  # Try different column positions (column 9 first based on debug output)
+                    if col_idx < len(cells):
+                        doc_id = cells[col_idx].text.strip()
+                        if doc_id and len(doc_id) > 5:  # Basic validation
+                            break
+                
                 if not doc_id:
+                    log_console(f"⚠️ No doc_id found in row")
                     continue
                 
-                # Extract document type from the Doc Type column (usually column 2)
+                # Extract document type from the Doc Type column (usually column 3 based on debug output)
                 doc_type = ""
                 if len(cells) > 2:
-                    doc_type = cells[1].text.strip()  # Doc Type column
+                    doc_type = cells[2].text.strip()  # Doc Type column (column 3)
+                
+                # Skip documents with type "conversation"
+                if doc_type and "conversation" in doc_type.lower():
+                    log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ❌ (CONVERSATION - SKIPPED)")
+                    continue
                 
                 if doc_id not in seen_ids:
                     # Get company key from function parameters or use default
@@ -182,40 +218,52 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             
         # Improved pagination with better verification
         try:
-            # Check if next button exists and is enabled
-            next_btn = driver.find_element(By.XPATH, "//li[contains(@class,'page-next') and not(contains(@class, 'disabled'))]/a")
+            # Try multiple selectors for the next button
+            next_button_selectors = [
+                "//li[contains(@class,'page-next') and not(contains(@class, 'disabled'))]/a",
+                "//a[contains(@class, 'page-next') and not(contains(@class, 'disabled'))]",
+                "//li[@class='page-next']/a",
+                "//a[text()='>']",
+                "//a[contains(text(), 'Next')]"
+            ]
+            
+            next_btn = None
+            for selector in next_button_selectors:
+                try:
+                    next_btn = driver.find_element(By.XPATH, selector)
+                    log_console(f"✅ Found next button with selector: {selector}")
+                    break
+                except:
+                    continue
+            
             if not next_btn:
                 log_console("🛑 Next button not found or disabled - end of pages")
                 break
             
             # Store current page state for comparison
             current_page_content = driver.find_element(By.CSS_SELECTOR, "#inbox-all-grid tbody").get_attribute("innerHTML")
+            current_row_count = len(current_rows)
             
             # Click next button
             driver.execute_script("arguments[0].scrollIntoView();", next_btn)
-            time.sleep(0.5)
+            time.sleep(1)
             
             try:
                 driver.execute_script("arguments[0].click();", next_btn)
-            except:
+                log_console(f"✅ Clicked next button for page {page + 1}")
+            except Exception as e:
+                log_console(f"⚠️ JavaScript click failed, trying regular click: {e}")
                 next_btn.click()
             
             # Wait for page to change with better verification
             page_changed = False
-            max_wait_attempts = 15
+            max_wait_attempts = 20  # Increased wait attempts
             
             for wait_attempt in range(max_wait_attempts):
-                time.sleep(1)
+                time.sleep(1.5)  # Increased wait time
                 
                 try:
-                    # Check if URL changed
-                    new_url = driver.current_url
-                    if new_url != current_url:
-                        log_console(f"✅ URL changed: {new_url}")
-                        page_changed = True
-                        break
-                    
-                    # Check if content changed
+                    # Check if content changed (most reliable for inbox)
                     new_page_content = driver.find_element(By.CSS_SELECTOR, "#inbox-all-grid tbody").get_attribute("innerHTML")
                     if new_page_content != current_page_content:
                         log_console(f"✅ Page content changed on attempt {wait_attempt + 1}")
@@ -223,10 +271,17 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                         break
                     
                     # Check if table rows changed
-                    WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
+                    WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
                     new_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
-                    if len(new_rows) != len(current_rows):
-                        log_console(f"✅ Row count changed: {len(current_rows)} -> {len(new_rows)}")
+                    if len(new_rows) != current_row_count:
+                        log_console(f"✅ Row count changed: {current_row_count} -> {len(new_rows)}")
+                        page_changed = True
+                        break
+                    
+                    # Check if URL changed (less reliable for inbox)
+                    new_url = driver.current_url
+                    if new_url != current_url:
+                        log_console(f"✅ URL changed: {new_url}")
                         page_changed = True
                         break
                         
@@ -236,30 +291,39 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             
             if not page_changed:
                 log_console(f"⚠️ Page didn't change after {max_wait_attempts} attempts")
-                # Try URL-based navigation as fallback
+                # For inbox, try refreshing and clicking again
                 try:
-                    if "page=" in current_url:
-                        new_url = re.sub(r'page=\d+', f'page={page+1}', current_url)
-                        log_console(f"🔄 Trying URL-based navigation: {new_url}")
-                        driver.get(new_url)
-                        time.sleep(3)
-                        
-                        # Verify the navigation worked
-                        if driver.current_url != current_url:
-                            log_console(f"✅ URL-based navigation successful")
-                            page_changed = True
-                        else:
-                            log_console(f"❌ URL-based navigation failed")
-                            break
-                    else:
-                        log_console(f"🛑 No page parameter in URL, ending pagination")
+                    log_console(f"🔄 Trying page refresh and next button click again...")
+                    driver.refresh()
+                    time.sleep(3)
+                    
+                    # Find and click next button again
+                    for selector in next_button_selectors:
+                        try:
+                            next_btn = driver.find_element(By.XPATH, selector)
+                            driver.execute_script("arguments[0].click();", next_btn)
+                            time.sleep(3)
+                            
+                            # Check if it worked
+                            new_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
+                            if len(new_rows) != current_row_count:
+                                log_console(f"✅ Refresh and click successful")
+                                page_changed = True
+                                break
+                        except:
+                            continue
+                    
+                    if not page_changed:
+                        log_console(f"🛑 Refresh and click also failed, ending pagination")
                         break
+                        
                 except Exception as e:
-                    log_console(f"🛑 URL-based navigation failed: {e}")
+                    log_console(f"🛑 Refresh and click failed: {e}")
                     break
             
             if page_changed:
                 page += 1
+                log_console(f"✅ Successfully moved to page {page}")
             else:
                 log_console(f"🛑 Could not navigate to next page. Ending pagination.")
                 break
@@ -282,16 +346,20 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
             for doc_type, count in type_counts.items():
                 log_console(f"   • {doc_type}: {count} documents")
     
-    # Retry if no documents found
-    if len(doc_ids) == 0:
-        log_console("⚠️ No documents found in inbox, retrying with longer wait...")
+    # Retry if no documents found (only if main extraction completely failed)
+    if len(doc_ids) == 0:  # Only retry if we found zero documents
+        log_console(f"⚠️ No documents found in main extraction, retrying with improved logic...")
         time.sleep(5)
         driver.refresh()
         time.sleep(3)
         
         retry_doc_ids = []
+        retry_doc_types = {}
         page = 1
-        while page <= 3:
+        consecutive_empty_pages = 0
+        max_consecutive_empty = 3
+        
+        while True:
             log_console(f"📄 Retry - Inbox page {page}")
             time.sleep(3)
             
@@ -301,30 +369,80 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                 current_rows = driver.find_elements(By.CSS_SELECTOR, "#inbox-all-grid tbody tr")
                 
                 if current_rows:
+                    new_docs_on_page = 0
                     for row in current_rows:
                         try:
                             cells = row.find_elements(By.TAG_NAME, "td")
                             if len(cells) >= 9:
-                                doc_id = cells[8].text.strip()
+                                # Try to find doc_id in different columns
+                                doc_id = ""
+                                for col_idx in [8, 9, 10]:
+                                    if col_idx < len(cells):
+                                        doc_id = cells[col_idx].text.strip()
+                                        if doc_id and len(doc_id) > 5:
+                                            break
+                                
                                 if doc_id and doc_id not in retry_doc_ids:
+                                    # Extract document type (column 3 based on debug output)
+                                    doc_type = ""
+                                    if len(cells) > 2:
+                                        doc_type = cells[2].text.strip()
+                                    
+                                    # Skip documents with type "conversation"
+                                    if doc_type and "conversation" in doc_type.lower():
+                                        log_console(f"📄 Retry - Doc ID: {doc_id} | Type: {doc_type} ❌ (CONVERSATION - SKIPPED)")
+                                        continue
+                                    
                                     retry_doc_ids.append(doc_id)
+                                    retry_doc_types[doc_id] = doc_type
+                                    new_docs_on_page += 1
+                                    log_console(f"📄 Retry - Found Doc ID: {doc_id} | Type: {doc_type}")
                         except Exception as e:
                             continue
+                    
+                    if new_docs_on_page == 0:
+                        consecutive_empty_pages += 1
+                        log_console(f"⚠️ No new documents on retry page {page} (consecutive: {consecutive_empty_pages})")
+                        if consecutive_empty_pages >= max_consecutive_empty:
+                            log_console(f"🛑 Breaking retry due to {max_consecutive_empty} consecutive empty pages")
+                            break
+                    else:
+                        consecutive_empty_pages = 0
+                        log_console(f"✅ Found {new_docs_on_page} new documents on retry page {page}")
                 
+                # Try to go to next page
                 try:
                     next_btn = driver.find_element(By.XPATH, "//li[contains(@class,'page-next') and not(contains(@class, 'disabled'))]/a")
                     driver.execute_script("arguments[0].click();", next_btn)
-                    time.sleep(2)
-                except:
+                    time.sleep(3)
+                    
+                    # Wait for page to load
+                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#inbox-all-grid tbody tr")))
+                except Exception as e:
+                    log_console(f"🛑 No more pages in retry: {e}")
                     break
                     
                 page += 1
+                
+                # Safety limit to prevent infinite loops
+                if page > 50:
+                    log_console(f"🛑 Reached safety limit of 50 pages in retry")
+                    break
+                    
             except TimeoutException:
+                log_console(f"🛑 Timeout on retry page {page}")
+                break
+            except Exception as e:
+                log_console(f"🛑 Error on retry page {page}: {e}")
                 break
         
         if retry_doc_ids:
-            log_console(f"✅ Retry successful: Found {len(retry_doc_ids)} documents")
-            return retry_doc_ids, getattr(extract_doc_ids_from_inbox, 'doc_types', {})
+            log_console(f"✅ Retry successful: Found {len(retry_doc_ids)} documents across {page-1} pages")
+            # Store the doc types for the retry documents
+            if not hasattr(extract_doc_ids_from_inbox, 'doc_types'):
+                extract_doc_ids_from_inbox.doc_types = {}
+            extract_doc_ids_from_inbox.doc_types.update(retry_doc_types)
+            return retry_doc_ids, extract_doc_ids_from_inbox.doc_types
     
     return doc_ids, getattr(extract_doc_ids_from_inbox, 'doc_types', {})
 
@@ -341,17 +459,38 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         # Click the "All" button to show all signed documents (not just "Signed & Unfiled")
         log_console("🔘 Clicking 'All' button to show all signed documents...")
         try:
-            all_button = wait_and_find_element(driver, By.XPATH, "//button[@class='btn btn-doc-status-filter active btn-primary' and @data-doc-status='All']")
-            if not all_button.get_attribute("class").find("active") >= 0:
-                # If "All" button is not active, click it
-                all_button = wait_and_find_element(driver, By.XPATH, "//button[@class='btn btn-doc-status-filter' and @data-doc-status='All']")
-                all_button.click()
-                time.sleep(1)
-                log_console("✅ Clicked 'All' button")
+            # Try multiple selectors for the "All" button
+            all_button_selectors = [
+                "//button[@data-doc-status='All']",
+                "//button[contains(@class, 'btn-doc-status-filter') and contains(text(), 'All')]",
+                "//button[contains(@class, 'btn-doc-status-filter') and @data-doc-status='All']",
+                "//button[text()='All' and contains(@class, 'btn-doc-status-filter')]"
+            ]
+            
+            all_button = None
+            for selector in all_button_selectors:
+                try:
+                    all_button = driver.find_element(By.XPATH, selector)
+                    log_console(f"✅ Found 'All' button with selector: {selector}")
+                    break
+                except:
+                    continue
+            
+            if all_button:
+                # Check if it's already active
+                button_class = all_button.get_attribute("class")
+                if "active" not in button_class:
+                    log_console("🔘 'All' button found but not active, clicking...")
+                    driver.execute_script("arguments[0].click();", all_button)
+                    time.sleep(2)
+                    log_console("✅ Clicked 'All' button")
+                else:
+                    log_console("✅ 'All' button is already active")
             else:
-                log_console("✅ 'All' button is already active")
+                log_console("⚠️ Could not find 'All' button, continuing with current view")
+                
         except Exception as e:
-            log_console(f"⚠️ Could not find or click 'All' button: {e}")
+            log_console(f"⚠️ Error with 'All' button: {e}")
             # Continue anyway, might already be on "All" view
         
         # Apply date filters
@@ -368,13 +507,24 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         
         # Click Go button to apply filters
         go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid")
-        go_button.click()
-        time.sleep(5)
+        log_console("🔘 Clicking 'Go' button to apply date filters...")
         
+        try:
+            driver.execute_script("arguments[0].click();", go_button)
+            log_console("✅ 'Go' button clicked successfully")
+        except Exception as e:
+            log_console(f"⚠️ JavaScript click failed, trying regular click: {e}")
+            go_button.click()
+            log_console("✅ 'Go' button clicked with regular click")
+        
+        time.sleep(8)  # Increased wait time for page to load
+        
+        # Wait a bit more and check for "No matching records found"
+        time.sleep(3)
         try:
             driver.find_element(By.XPATH, "//td[@colspan='11' and contains(text(), 'No matching records found')]")
             log_console("No Signed Orders found")
-            return []
+            return [], {}  # Return empty tuple instead of empty list
         except Exception:
             pass
             

@@ -141,7 +141,7 @@ COMPANIES = {
     "grace_at_home": {
         "name": "Grace at Home",
         "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
-        "helper_id": "adoctorph9211",
+        "helper_id": "pcookph324",
         "description": "Grace at Home - Home healthcare and medical services"
     },
     "covenant_care": {
