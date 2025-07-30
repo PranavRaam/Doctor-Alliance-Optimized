@@ -473,11 +473,29 @@ def build_order_payload(row, patients=None):
     }
 
 
+def get_document_data(doc_id):
+    """Get document data from DoctorAlliance API."""
+    from supremesheet import API_BASE, AUTH_HEADER
+    
+    url = f"{API_BASE}{doc_id}"
+    try:
+        r = requests.get(url, headers=AUTH_HEADER, timeout=20)
+        data = r.json()
+        if not data.get("isSuccess"):
+            print(f"  [DOC_API] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}")
+            return None
+        return data
+    except Exception as e:
+        print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")
+        return None
+
 def create_order(row, patients=None):
     payload = build_order_payload(row, patients)
     payload = clean_payload_for_json(payload)
     print("\n--- [ORDER_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
+    
+    order_guid = None
     try:
         resp = requests.post(ORDER_API, headers=HEADERS, json=payload, timeout=20)
         print("--- [ORDER_CREATE] Response ---")
@@ -487,14 +505,43 @@ def create_order(row, patients=None):
         except Exception:
             resp_json = {}
         success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and 'orderNo' in resp_json)
-        if not success:
+        
+        if success:
+            # Extract order GUID for PDF upload
+            order_guid = resp_json.get('id') or resp_json.get('orderId') or resp_json.get('guid')
+            print(f"  [ORDER_CREATE] Order created successfully. Order GUID: {order_guid}")
+            
+            # Upload PDF to the order
+            if order_guid:
+                doc_id = row.get('Document ID') or row.get('docId')
+                if doc_id:
+                    print(f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}")
+                    doc_data = get_document_data(doc_id)
+                    if doc_data:
+                        pdf_success, pdf_remark = upload_pdf_from_document_data(doc_data, order_guid)
+                        if pdf_success:
+                            print(f"  [PDF_UPLOAD] ✅ PDF uploaded successfully to order {order_guid}")
+                            return True, f"Order created and PDF uploaded successfully"
+                        else:
+                            print(f"  [PDF_UPLOAD] ❌ PDF upload failed: {pdf_remark}")
+                            return True, f"Order created but PDF upload failed: {pdf_remark}"
+                    else:
+                        print(f"  [PDF_UPLOAD] ❌ Could not fetch document data for PDF upload")
+                        return True, f"Order created but could not fetch document data for PDF upload"
+                else:
+                    print(f"  [PDF_UPLOAD] ❌ No Document ID found for PDF upload")
+                    return True, f"Order created but no Document ID found for PDF upload"
+            else:
+                print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
+                return True, f"Order created but no order GUID received for PDF upload"
+        else:
             # Simplify error extraction
             if isinstance(resp_json, dict) and 'errors' in resp_json:
                 error_details = json.dumps(resp_json['errors'])
             else:
                 error_details = resp.text
             return False, error_details
-        return True, ""
+            
     except Exception as e:
         print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
         return False, f"Exception: {e}"
@@ -693,24 +740,49 @@ def main():
     # 3. Upload orders for PatientExist==TRUE
     df['ORDERUPLOAD_STATUS'] = ""
     df['ORDER_CREATION_REMARK'] = ""
+    df['PDF_UPLOAD_STATUS'] = ""
+    df['PDF_UPLOAD_REMARK'] = ""
+    
     for idx, row in df.iterrows():
         if row.get('PatientExist', False):
             try:
                 order_success, order_remark = create_order(row, patients_for_orders)
                 df.at[idx, 'ORDERUPLOAD_STATUS'] = "TRUE" if order_success else "FALSE"
                 df.at[idx, 'ORDER_CREATION_REMARK'] = order_remark
+                
+                # Track PDF upload status
+                if order_success and "PDF uploaded successfully" in order_remark:
+                    df.at[idx, 'PDF_UPLOAD_STATUS'] = "TRUE"
+                    df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF uploaded successfully"
+                elif order_success and "PDF upload failed" in order_remark:
+                    df.at[idx, 'PDF_UPLOAD_STATUS'] = "FALSE"
+                    df.at[idx, 'PDF_UPLOAD_REMARK'] = order_remark
+                elif order_success:
+                    df.at[idx, 'PDF_UPLOAD_STATUS'] = "SKIPPED"
+                    df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF upload skipped - no document data available"
+                else:
+                    df.at[idx, 'PDF_UPLOAD_STATUS'] = "SKIPPED"
+                    df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF upload skipped - order creation failed"
+                    
             except Exception as e:
                 df.at[idx, 'ORDERUPLOAD_STATUS'] = "FALSE"
                 df.at[idx, 'ORDER_CREATION_REMARK'] = f"Exception: {e}"
+                df.at[idx, 'PDF_UPLOAD_STATUS'] = "SKIPPED"
+                df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF upload skipped - order creation exception"
         else:
             df.at[idx, 'ORDERUPLOAD_STATUS'] = "SKIPPED"
             df.at[idx, 'ORDER_CREATION_REMARK'] = "Order skipped: Patient does not exist for this row."
+            df.at[idx, 'PDF_UPLOAD_STATUS'] = "SKIPPED"
+            df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF upload skipped: Patient does not exist for this row."
 
     output_file_final = input_file.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
     df.to_excel(output_file_final, index=False)
     print(f"✅ Created final upload file: {output_file_final}")
     print(f"   Total records: {len(df)}")
     print(f"   Orders processed: {len(df[df['ORDERUPLOAD_STATUS'].isin(['TRUE', 'FALSE'])])}")
+    print(f"   PDFs uploaded successfully: {len(df[df['PDF_UPLOAD_STATUS'] == 'TRUE'])}")
+    print(f"   PDFs upload failed: {len(df[df['PDF_UPLOAD_STATUS'] == 'FALSE'])}")
+    print(f"   PDFs upload skipped: {len(df[df['PDF_UPLOAD_STATUS'] == 'SKIPPED'])}")
     print(f"Upload process complete. Check {output_file_final}")
 
 

@@ -327,7 +327,10 @@ def main():
             "DABackOfficeID": dabackofficeid,
             "patientName": patient_name,
             "sendDate": sendDate,
-            "patient_sex": patient_sex
+            "patient_sex": patient_sex,
+            "PDF_Available": "YES" if doc_api.get("documentBuffer") else "NO",
+            "PDF_Upload_Ready": "YES" if (doc_api.get("documentBuffer") and doc_api.get("documentType")) else "NO",
+            "PDF_Size_KB": len(doc_api.get("documentBuffer", "")) // 1024 if doc_api.get("documentBuffer") else 0
         }
 
         patient, found = match_patient(
@@ -372,7 +375,18 @@ def main():
 
     out_df = pd.DataFrame(output_rows)
     out_df.to_excel(output_file, index=False)
+    
+    # Print PDF statistics
+    total_records = len(out_df)
+    pdf_available = len(out_df[out_df['PDF_Available'] == 'YES'])
+    pdf_upload_ready = len(out_df[out_df['PDF_Upload_Ready'] == 'YES'])
+    
     print(f"\n✅ Supreme Excel written: {output_file}")
+    print(f"📊 PDF Statistics:")
+    print(f"   Total records: {total_records}")
+    print(f"   PDFs available: {pdf_available}")
+    print(f"   PDFs ready for upload: {pdf_upload_ready}")
+    print(f"   PDF upload success rate: {(pdf_upload_ready/total_records*100):.1f}%" if total_records > 0 else "   PDF upload success rate: 0%")
 
 if __name__ == "__main__":
     main()
