@@ -93,7 +93,12 @@ MULTIPLE_COMPANIES = [
     # "prima_care"
     "grace_at_home",
     "covenant_care",
-    "md_primary_care"
+    "md_primary_care",
+    "applemd",
+    "woundcentrics",
+    "visiting_practitioners",
+    "doctor_at_your_service",
+    "ut_health_geriatrics"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -130,7 +135,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "grace_at_home", "covenant_care", "md_primary_care"
+# Available company keys: "grace_at_home", "covenant_care", "md_primary_care", "applemd", "woundcentrics", "visiting_practitioners", "doctor_at_your_service", "ut_health_geriatrics"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -155,6 +160,36 @@ COMPANIES = {
         "pg_company_id": "29e46ad6-8ca8-400b-b049-48c17c0b831d",
         "helper_id": "ihelperph5211",
         "description": "MD Primary Care - Primary care and family medicine services"
+    },
+    "applemd": {
+        "name": "APPLEMD",
+        "pg_company_id": "83de8c79-1a28-4d0b-90bc-5deaf95949e5",
+        "helper_id": "ihelperph1024",
+        "description": "APPLEMD - Medical services and healthcare"
+    },
+    "woundcentrics": {
+        "name": "WoundCentrics, LLC",
+        "pg_company_id": "0367ce80-57a9-45e7-8afe-18f665a6a640",
+        "helper_id": "tthriftph1024",
+        "description": "WoundCentrics, LLC - Wound care and treatment services"
+    },
+    "visiting_practitioners": {
+        "name": "Visiting Practitioners And Palliative Care LLC",
+        "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
+        "helper_id": "ihelperph1242",
+        "description": "Visiting Practitioners And Palliative Care LLC - Palliative care services"
+    },
+    "doctor_at_your_service": {
+        "name": "Doctor at your service",
+        "pg_company_id": "e749dda4-60ab-48d3-afc6-728a15d74182",
+        "helper_id": "ihelperph421",
+        "description": "Doctor at your service - On-demand medical services"
+    },
+    "ut_health_geriatrics": {
+        "name": "UT Health Geriatrics & Supportive Care Clinic",
+        "pg_company_id": "b50483ad-042c-4d64-96d7-4427c7862f9e",
+        "helper_id": "mramirezph821",
+        "description": "UT Health Geriatrics & Supportive Care Clinic - Geriatric and supportive care"
     }
 }
 
