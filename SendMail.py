@@ -17,7 +17,7 @@ from google.auth.transport.requests import Request
 # ========== CONFIG ==========
 
 EXCEL_INPUT_PATH = "supreme_excel_with_patient_and_order_upload.xlsx"   # Your output Excel file
-TO_EMAILS = ["sujay@doctoralliance.com","pranavraam@doctoralliance.com"]
+TO_EMAILS = ["sujay@doctoralliance.com","shubhash@doctoralliance.com"]
 CC_EMAILS = []
 
 # Google OAuth2 credentials

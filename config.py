@@ -91,14 +91,11 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "grace_at_home",
-    "covenant_care",
-    "md_primary_care",
-    "applemd",
-    "woundcentrics",
-    "visiting_practitioners",
-    "doctor_at_your_service",
-    "ut_health_geriatrics"
+    "clinics_of_north_texas",
+    "doctors_at_home",
+    "spectrum_health_solutions",
+    "royal_vp",
+    "citywide_housecalls"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -135,7 +132,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "grace_at_home", "covenant_care", "md_primary_care", "applemd", "woundcentrics", "visiting_practitioners", "doctor_at_your_service", "ut_health_geriatrics"
+# Available company keys: "clinics_of_north_texas", "doctors_at_home", "spectrum_health_solutions", "royal_vp", "citywide_housecalls"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -143,53 +140,35 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "grace_at_home": {
-        "name": "Grace at Home",
-        "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
-        "helper_id": "pcookph324",
-        "description": "Grace at Home - Home healthcare and medical services"
+    "clinics_of_north_texas": {
+        "name": "CLINICS OF NORTH TEXAS LLP",
+        "pg_company_id": "398b825d-5e6d-4a86-88df-79992a36f536",
+        "helper_id": "sbensonph924",
+        "description": "CLINICS OF NORTH TEXAS LLP - Medical clinics and healthcare services"
     },
-    "covenant_care": {
-        "name": "Covenant Care",
-        "pg_company_id": "ec35b120-0883-4d1f-b63d-89bd43d6d89e",
-        "helper_id": "ihelperph7241",
-        "description": "Covenant Care - Comprehensive healthcare services"
+    "doctors_at_home": {
+        "name": "Doctors at Home - Mary Snellings MD",
+        "pg_company_id": "de385408-1cd6-46a2-be58-ff4b8eeeddc7",
+        "helper_id": "handrewph27",
+        "description": "Doctors at Home - Mary Snellings MD - Home healthcare services"
     },
-    "md_primary_care": {
-        "name": "MD Primary Care",
-        "pg_company_id": "29e46ad6-8ca8-400b-b049-48c17c0b831d",
-        "helper_id": "ihelperph5211",
-        "description": "MD Primary Care - Primary care and family medicine services"
+    "spectrum_health_solutions": {
+        "name": "Spectrum Health Solutions (Community First Primary Care)",
+        "pg_company_id": "6f4180aa-b472-4d5c-b7aa-98e06bb4fd6f",
+        "helper_id": "ihelperph12232",
+        "description": "Spectrum Health Solutions (Community First Primary Care) - Primary care services"
     },
-    "applemd": {
-        "name": "APPLEMD",
-        "pg_company_id": "83de8c79-1a28-4d0b-90bc-5deaf95949e5",
-        "helper_id": "ihelperph1024",
-        "description": "APPLEMD - Medical services and healthcare"
+    "royal_vp": {
+        "name": "Royal V.P., LLC",
+        "pg_company_id": "eaba3c1c-217f-458d-aa2f-172e3ffbab1e",
+        "helper_id": "ihelperph4214",
+        "description": "Royal V.P., LLC - Healthcare and medical services"
     },
-    "woundcentrics": {
-        "name": "WoundCentrics, LLC",
-        "pg_company_id": "0367ce80-57a9-45e7-8afe-18f665a6a640",
-        "helper_id": "tthriftph1024",
-        "description": "WoundCentrics, LLC - Wound care and treatment services"
-    },
-    "visiting_practitioners": {
-        "name": "Visiting Practitioners And Palliative Care LLC",
-        "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
-        "helper_id": "ihelperph1242",
-        "description": "Visiting Practitioners And Palliative Care LLC - Palliative care services"
-    },
-    "doctor_at_your_service": {
-        "name": "Doctor at your service",
-        "pg_company_id": "e749dda4-60ab-48d3-afc6-728a15d74182",
-        "helper_id": "ihelperph421",
-        "description": "Doctor at your service - On-demand medical services"
-    },
-    "ut_health_geriatrics": {
-        "name": "UT Health Geriatrics & Supportive Care Clinic",
-        "pg_company_id": "b50483ad-042c-4d64-96d7-4427c7862f9e",
-        "helper_id": "mramirezph821",
-        "description": "UT Health Geriatrics & Supportive Care Clinic - Geriatric and supportive care"
+    "citywide_housecalls": {
+        "name": "CityWide Housecalls, LLC",
+        "pg_company_id": "534ca7a5-2db0-4c75-8988-89f73064c5e5",
+        "helper_id": "ihelperph1021",
+        "description": "CityWide Housecalls, LLC - House call medical services"
     }
 }
 
