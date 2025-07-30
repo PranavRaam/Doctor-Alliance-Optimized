@@ -39,9 +39,38 @@ def replace_ids_with_names(df):
     ancilliary_map = fetch_id_name_map("ANCILLIARY")
     print("Fetching PRACTICE names...")
     practice_map = fetch_id_name_map("PRACTICE")
-    # Replace IDs with names; fallback to original value if not found
-    df['ANCILLIARYName'] = df['companyId'].map(ancilliary_map).fillna(df['companyId'])
-    df['PRACTICEName'] = df['Pgcompanyid'].map(practice_map).fillna(df['Pgcompanyid'])
+    
+    # Check available columns and handle missing ones gracefully
+    print(f"Available columns in Excel: {list(df.columns)}")
+    
+    # Handle companyId column (try different possible names)
+    company_id_col = None
+    for col_name in ['companyId', 'company_id', 'agency name']:
+        if col_name in df.columns:
+            company_id_col = col_name
+            break
+    
+    if company_id_col:
+        df['ANCILLIARYName'] = df[company_id_col].map(ancilliary_map).fillna(df[company_id_col])
+        print(f"✅ Added ANCILLIARYName column using {company_id_col}")
+    else:
+        df['ANCILLIARYName'] = "N/A"
+        print("⚠️  No company ID column found, setting ANCILLIARYName to N/A")
+    
+    # Handle Pgcompanyid column (try different possible names)
+    pg_company_id_col = None
+    for col_name in ['Pgcompanyid', 'pg_company_id', 'pg name']:
+        if col_name in df.columns:
+            pg_company_id_col = col_name
+            break
+    
+    if pg_company_id_col:
+        df['PRACTICEName'] = df[pg_company_id_col].map(practice_map).fillna(df[pg_company_id_col])
+        print(f"✅ Added PRACTICEName column using {pg_company_id_col}")
+    else:
+        df['PRACTICEName'] = "N/A"
+        print("⚠️  No PG company ID column found, setting PRACTICEName to N/A")
+    
     return df
 
 def send_patient_script_mail(to_emails, cc_emails, excel_path):
@@ -123,10 +152,24 @@ if __name__ == "__main__":
 
     # 2. Read Excel
     print(f"Reading Excel: {input_file}")
-    df = pd.read_excel(input_file)
+    try:
+        df = pd.read_excel(input_file)
+        print(f"✅ Successfully read Excel with {len(df)} rows and {len(df.columns)} columns")
+    except Exception as e:
+        print(f"❌ Error reading Excel file: {e}")
+        sys.exit(1)
 
     # 3. Replace companyid and Pgcompanyid
-    df = replace_ids_with_names(df)
+    try:
+        df = replace_ids_with_names(df)
+    except Exception as e:
+        print(f"❌ Error in replace_ids_with_names: {e}")
+        print("Continuing without name replacement...")
+        # Add default columns if they don't exist
+        if 'ANCILLIARYName' not in df.columns:
+            df['ANCILLIARYName'] = "N/A"
+        if 'PRACTICEName' not in df.columns:
+            df['PRACTICEName'] = "N/A"
 
     # 4. Save as new Excel for emailing
     excel_out_path = os.path.join(xlsx_dir, "PATIENT_SCRIPT_output.xlsx")
