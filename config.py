@@ -29,49 +29,49 @@ QDRANT_API_KEY = "adc8fc0d-3f8e-4373-87d0-b3df7d2417d0"
 COLLECTION_NAME = "medical_document"
 QDRANT_USE_HTTPS = True
 
-# ACCURACY-FIRST Configuration
+# Performance-Optimized Configuration for VM
 QDRANT_CONFIG = {
-    "hnsw_ef_construct": 400,    # Higher for better index quality
-    "hnsw_m": 64,                # More connections for better accuracy
-    "hnsw_ef_search": 200,       # Higher search quality
-    "quantization_enabled": False, # Disable quantization for max accuracy
-    "oversampling": 1.0,         # No oversampling needed without quantization
-    "rescore": True,             # Always rescore for accuracy
-    "top_k_retrieval": 10        # Retrieve more context
+    "hnsw_ef_construct": 200,    # Reduced for speed
+    "hnsw_m": 32,                # Reduced connections for speed
+    "hnsw_ef_search": 100,       # Reduced search quality for speed
+    "quantization_enabled": True, # Enable quantization for speed
+    "oversampling": 1.0,         # No oversampling needed
+    "rescore": False,            # Disable rescore for speed
+    "top_k_retrieval": 5         # Retrieve less context for speed
 }
 
-# Balanced Download Configuration (reasonable speed)
+# Optimized Download Configuration for VM performance
 DOWNLOAD_CONFIG = {
-    "max_concurrent_downloads": 6,   # Reduced for stability
+    "max_concurrent_downloads": 15,  # Increased for VM performance
     "chunk_size": 8192,
-    "timeout": 45,                   # Longer timeout for reliability
-    "max_retries": 5,                # More retries for robustness
-    "retry_backoff": 3,              # Longer backoff
-    "connection_pool_size": 15,
+    "timeout": 30,                   # Reduced timeout for faster failure detection
+    "max_retries": 3,                # Reduced retries for speed
+    "retry_backoff": 2,              # Shorter backoff
+    "connection_pool_size": 25,      # Increased pool size
     "use_async": True,
 }
 
-# ACCURACY-FOCUSED Text Extraction Configuration
+# Optimized Text Extraction Configuration for VM performance
 EXTRACTION_CONFIG = {
-    "max_concurrent_extractions": 3,    # Lower concurrency for accuracy
-    "quality_threshold": 85,            # High quality threshold
-    "comprehensive_testing": True,      # Test all methods thoroughly
-    "ocr_fallback_threshold": 60,       # Lower threshold for OCR fallback
-    "multi_pass_extraction": True,      # Multiple extraction attempts
-    "text_validation_enabled": True,   # Validate extracted text
-    "medical_field_validation": True,   # Medical-specific validation
-    "extraction_timeout": 120,         # Longer timeout per document
+    "max_concurrent_extractions": 8,    # Increased concurrency for speed
+    "quality_threshold": 80,            # Slightly lower threshold for speed
+    "comprehensive_testing": False,     # Disabled for speed
+    "ocr_fallback_threshold": 70,       # Higher threshold to avoid OCR
+    "multi_pass_extraction": False,     # Disabled for speed
+    "text_validation_enabled": False,   # Disabled for speed
+    "medical_field_validation": False,  # Disabled for speed
+    "extraction_timeout": 60,          # Reduced timeout for speed
 }
 
-# Enhanced Field Extraction Configuration
+# Optimized Field Extraction Configuration for VM performance
 FIELD_EXTRACTION_CONFIG = {
-    "max_retries": 8,               # More retries for field extraction
-    "chunk_overlap": 300,           # More overlap for context
-    "multi_model_validation": True, # Use multiple models for validation
-    "field_confidence_threshold": 0.7, # Confidence threshold for fields
-    "cross_validation_enabled": True,  # Cross-validate extracted fields
-    "medical_context_enhancement": True, # Enhanced medical context
-    "structured_prompting": True,   # Use structured prompting techniques
+    "max_retries": 3,               # Reduced retries for speed
+    "chunk_overlap": 200,           # Reduced overlap for speed
+    "multi_model_validation": False, # Disabled for speed
+    "field_confidence_threshold": 0.6, # Lower threshold for speed
+    "cross_validation_enabled": False,  # Disabled for speed
+    "medical_context_enhancement": False, # Disabled for speed
+    "structured_prompting": False,   # Disabled for speed
 }
 
 # ===========================================
