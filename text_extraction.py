@@ -1,7 +1,6 @@
 import os
 import time
 import logging
-import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
 import io
@@ -10,6 +9,16 @@ import pdfplumber
 from pdfminer.high_level import extract_text as pdfminer_extract_tex
 from typing import List, Dict, Any
 import numpy as np
+
+# Try to import PyMuPDF, with fallback handling
+try:
+    import fitz  # PyMuPDF
+    FITZ_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: PyMuPDF (fitz) not available: {e}")
+    print("PDFPlumber and PDFMiner will be used as alternatives")
+    FITZ_AVAILABLE = False
+    fitz = None
 
 from validation import ExtractionResult, TextQualityAnalyzer
 from config import EXTRACTION_CONFIG
@@ -30,33 +39,36 @@ class AccuracyFocusedTextExtractor:
         results = []
         
         # Method 1: PyMuPDF (fitz) - Multiple configurations
-        fitz_configs = [
-            {"flags": 0, "name": "fitz_standard"},
-            {"flags": fitz.TEXT_PRESERVE_LIGATURES, "name": "fitz_ligatures"},
-            {"flags": fitz.TEXT_PRESERVE_WHITESPACE, "name": "fitz_whitespace"},
-        ]
-        
-        for config in fitz_configs:
-            try:
-                text = self._extract_with_fitz_enhanced(pdf_path, config)
-                quality = self.quality_analyzer.analyze_comprehensive(text)
-                
-                results.append(ExtractionResult(
-                    text=text,
-                    method=config["name"],
-                    quality_score=quality["score"],
-                    confidence=quality["score"] / 100.0,
-                    metrics=quality
-                ))
-            except Exception as e:
-                logger.error(f"Fitz extraction failed for {doc_id}: {e}")
-                results.append(ExtractionResult(
-                    text="",
-                    method=config["name"],
-                    quality_score=0,
-                    confidence=0,
-                    error=str(e)
-                ))
+        if FITZ_AVAILABLE:
+            fitz_configs = [
+                {"flags": 0, "name": "fitz_standard"},
+                {"flags": fitz.TEXT_PRESERVE_LIGATURES, "name": "fitz_ligatures"},
+                {"flags": fitz.TEXT_PRESERVE_WHITESPACE, "name": "fitz_whitespace"},
+            ]
+            
+            for config in fitz_configs:
+                try:
+                    text = self._extract_with_fitz_enhanced(pdf_path, config)
+                    quality = self.quality_analyzer.analyze_comprehensive(text)
+                    
+                    results.append(ExtractionResult(
+                        text=text,
+                        method=config["name"],
+                        quality_score=quality["score"],
+                        confidence=quality["score"] / 100.0,
+                        metrics=quality
+                    ))
+                except Exception as e:
+                    logger.error(f"Fitz extraction failed for {doc_id}: {e}")
+                    results.append(ExtractionResult(
+                        text="",
+                        method=config["name"],
+                        quality_score=0,
+                        confidence=0,
+                        error=str(e)
+                    ))
+        else:
+            logger.warning(f"PyMuPDF not available, skipping Fitz extraction for {doc_id}")
         
         # Method 2: PDFPlumber - Enhanced configuration
         try:
@@ -185,6 +197,9 @@ class AccuracyFocusedTextExtractor:
     
     def _extract_with_fitz_enhanced(self, pdf_path: str, config: Dict) -> str:
         """Enhanced PyMuPDF extraction with multiple configurations."""
+        if not FITZ_AVAILABLE:
+            raise ImportError("PyMuPDF is not available.")
+            
         doc = fitz.open(pdf_path)
         text_parts = []
         
@@ -254,6 +269,10 @@ class AccuracyFocusedTextExtractor:
     
     def _extract_with_ocr_comprehensive(self, pdf_path: str, doc_id: str) -> str:
         """Comprehensive OCR extraction with multiple engines and configurations."""
+        if not FITZ_AVAILABLE:
+            # Fallback to PDFPlumber + OCR for first few pages
+            return self._extract_with_ocr_fallback(pdf_path, doc_id)
+            
         doc = fitz.open(pdf_path)
         all_text_parts = []
         
@@ -325,6 +344,43 @@ class AccuracyFocusedTextExtractor:
         
         doc.close()
         return "\n".join(all_text_parts)
+    
+    def _extract_with_ocr_fallback(self, pdf_path: str, doc_id: str) -> str:
+        """Fallback OCR method using PDFPlumber when PyMuPDF is not available."""
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                all_text_parts = []
+                
+                for page_num, page in enumerate(pdf.pages[:5]):  # Limit to 5 pages
+                    try:
+                        # Extract text first
+                        text = page.extract_text()
+                        if text and len(text.strip()) > 50:
+                            all_text_parts.append(f"\n--- Page {page_num + 1} ---\n{text}")
+                            continue
+                        
+                        # If text extraction fails, try OCR on page image
+                        img = page.to_image()
+                        if img:
+                            # Convert to PIL Image
+                            pil_img = Image.fromarray(img.original)
+                            pil_img = pil_img.convert('L')
+                            
+                            # Try Tesseract OCR
+                            ocr_text = pytesseract.image_to_string(pil_img, config='--psm 6 --oem 3')
+                            
+                            if ocr_text.strip():
+                                all_text_parts.append(f"\n--- OCR Page {page_num + 1} ---\n{ocr_text}")
+                                
+                    except Exception as e:
+                        logger.warning(f"Fallback OCR failed for page {page_num}: {e}")
+                        continue
+                
+                return "\n".join(all_text_parts)
+                
+        except Exception as e:
+            logger.error(f"Fallback OCR extraction failed for {doc_id}: {e}")
+            return ""
     
     def extract_document(self, pdf_path: str, doc_id: str) -> ExtractionResult:
         """Main method to extract text from a document with maximum accuracy."""

@@ -91,9 +91,9 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "welllife_family_medicine",
-    "paragon_medical",
-    "brownfield_family"
+    "grace_at_home",
+    "covenant_care",
+    "md_primary_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -130,7 +130,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "welllife_family_medicine", "paragon_medical", "brownfield_family"
+# Available company keys: "grace_at_home", "covenant_care", "md_primary_care"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -138,23 +138,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "welllife_family_medicine": {
-        "name": "WellLife Family Medicine",
-        "pg_company_id": "1a959ae5-7ba2-47e5-b044-64690eeced93",
-        "helper_id": "dallianceph7218",
-        "description": "WellLife Family Medicine - Primary care and family medicine services"
+    "grace_at_home": {
+        "name": "Grace at Home",
+        "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
+        "helper_id": "adoctorph9211",
+        "description": "Grace at Home - Home healthcare and medical services"
     },
-    "paragon_medical": {
-        "name": "Paragon Medical Associates",
-        "pg_company_id": "84e35202-3422-4de4-b5cb-efe5461b1312",
-        "helper_id": "ihelperph4215",
-        "description": "Paragon Medical Associates - Comprehensive medical services"
+    "covenant_care": {
+        "name": "Covenant Care",
+        "pg_company_id": "ec35b120-0883-4d1f-b63d-89bd43d6d89e",
+        "helper_id": "ihelperph7241",
+        "description": "Covenant Care - Comprehensive healthcare services"
     },
-    "brownfield_family": {
-        "name": "Brownfield Family Physicians", 
-        "pg_company_id": "b62429db-642c-4fdb-9bf3-29e381d20e22",
-        "helper_id": "dallianceph7218",
-        "description": "Brownfield Family Physicians - Family medicine and primary care"
+    "md_primary_care": {
+        "name": "MD Primary Care",
+        "pg_company_id": "29e46ad6-8ca8-400b-b049-48c17c0b831d",
+        "helper_id": "ihelperph5211",
+        "description": "MD Primary Care - Primary care and family medicine services"
     }
 }
 
@@ -297,20 +297,20 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
-    "welllife_family_medicine": {
+    "grace_at_home": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for WellLife Family Medicine"
+        "description": "Process all document types for Grace at Home"
     },
-    "paragon_medical": {
+    "covenant_care": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Paragon Medical Associates"
+        "description": "Process all document types for Covenant Care"
     },
-    "brownfield_family": {
+    "md_primary_care": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Brownfield Family Physicians"
+        "description": "Process all document types for MD Primary Care"
     },
     "prima_care": {
         "enabled": True,

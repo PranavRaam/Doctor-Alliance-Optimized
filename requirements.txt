@@ -1,0 +1,32 @@
+# PDF Processing Libraries
+PyMuPDF==1.23.8
+pdfplumber==0.10.3
+pdfminer.six==20231228
+
+# OCR Libraries
+pytesseract==0.3.10
+Pillow==10.1.0
+easyocr==1.7.0
+
+# Data Processing
+numpy==1.24.3
+pandas==2.0.3
+
+# Web Scraping
+selenium==4.15.2
+requests==2.31.0
+
+# Database
+sqlite3
+
+# Utilities
+python-dotenv==1.0.0
+openpyxl==3.1.2
+xlsxwriter==3.1.9
+
+# Logging and Configuration
+logging
+configparser
+
+# Optional: For better performance
+# torch==2.1.0  # Uncomment if using GPU for EasyOCR 
