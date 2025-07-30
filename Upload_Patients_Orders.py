@@ -583,6 +583,37 @@ def main():
     if len(sys.argv) > 2:
         company_key = sys.argv[2]
     
+    print(f"🔧 Upload_Patients_Orders.py started")
+    print(f"   Input file: {input_file}")
+    print(f"   Company key: {company_key}")
+    print(f"   Arguments received: {sys.argv}")
+    
+    # Check if input file exists, if not try to find it with company key
+    if not os.path.exists(input_file) and company_key:
+        # Try to find the company-specific file
+        possible_files = [
+            f"supreme_excel_{company_key}.xlsx",
+            "supreme_excel.xlsx"
+        ]
+        print(f"   Looking for input file. Tried: {possible_files}")
+        for file in possible_files:
+            if os.path.exists(file):
+                input_file = file
+                print(f"✅ Found input file: {input_file}")
+                break
+        else:
+            print(f"❌ Error: Could not find input file. Tried: {possible_files}")
+            print(f"   Available files in directory:")
+            for f in os.listdir('.'):
+                if f.endswith('.xlsx'):
+                    print(f"     - {f}")
+            return
+    elif os.path.exists(input_file):
+        print(f"✅ Input file exists: {input_file}")
+    else:
+        print(f"❌ Input file does not exist: {input_file}")
+        return
+    
     # Set company API URLs based on active company or provided company key
     set_company_api_urls(company_key)
     
@@ -621,6 +652,9 @@ def main():
     df = refill_patient_info(df)
     output_file_with_patients = input_file.replace('.xlsx', '_with_patient_upload.xlsx')
     df.to_excel(output_file_with_patients, index=False)
+    print(f"✅ Created patient upload file: {output_file_with_patients}")
+    print(f"   Total records: {len(df)}")
+    print(f"   Patients created: {len(created_patients)}")
 
     # 2. Second pass: Convert OTHER_SIGNABLE to OTHER, and create patients for ALL PatientExist==False rows (if not already created)
     for idx, row in df.iterrows():
@@ -674,6 +708,9 @@ def main():
 
     output_file_final = input_file.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
     df.to_excel(output_file_final, index=False)
+    print(f"✅ Created final upload file: {output_file_final}")
+    print(f"   Total records: {len(df)}")
+    print(f"   Orders processed: {len(df[df['ORDERUPLOAD_STATUS'].isin(['TRUE', 'FALSE'])])}")
     print(f"Upload process complete. Check {output_file_final}")
 
 

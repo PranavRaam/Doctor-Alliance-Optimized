@@ -141,8 +141,21 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
     # Read the supreme Excel file
     df = pd.read_excel(supreme_excel_path)
     
-    # Filter for only failed and skipped records
-    df = df[df["PATIENTUPLOAD_STATUS"].isin(["FALSE", "SKIPPED"])]
+    # Debug: Print available columns
+    print(f"📊 Available columns in supreme Excel: {list(df.columns)}")
+    
+    # Check if PATIENTUPLOAD_STATUS column exists (only added by Upload_Patients_Orders.py)
+    if "PATIENTUPLOAD_STATUS" not in df.columns:
+        print("📊 PATIENTUPLOAD_STATUS column not found. Creating failed records based on PatientExist status...")
+        # Check if PatientExist column exists
+        if "PatientExist" not in df.columns:
+            print("❌ PatientExist column not found either. Cannot create failed records report.")
+            return None
+        # Filter for records where PatientExist is False
+        df = df[df["PatientExist"] == False]
+    else:
+        # Filter for only failed and skipped records
+        df = df[df["PATIENTUPLOAD_STATUS"].isin(["FALSE", "SKIPPED"])]
     
     print(f"📊 Processing {len(df)} failed/skipped records...")
     
@@ -153,11 +166,18 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
     
     # Create output dataframe with selected columns
     df_out = pd.DataFrame()
-    df_out["docid"] = df["Document ID"]
-    df_out["patient_name"] = df["patientName"]
-    df_out["dob"] = df["dob"]
-    df_out["dabackofficeid"] = df["DABackOfficeID"]
-    df_out["mrn_number"] = df["mrn"]
+    
+    # Safely access columns with fallbacks
+    try:
+        df_out["docid"] = df.get("Document ID", "")
+        df_out["patient_name"] = df.get("patientName", "")
+        df_out["dob"] = df.get("dob", "")
+        df_out["dabackofficeid"] = df.get("DABackOfficeID", "")
+        df_out["mrn_number"] = df.get("mrn", "")
+    except Exception as e:
+        print(f"❌ Error accessing DataFrame columns: {e}")
+        print(f"Available columns: {list(df.columns)}")
+        return None
     
     # Apply company name conversion
     def get_pg_company_name(pg_id):
@@ -184,24 +204,33 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
         else:
             return ""
     
-    df_out["pg name"] = df["Pgcompanyid"].apply(get_pg_company_name)
-    df_out["agency name"] = df["companyId"].apply(get_company_name)
+    try:
+        df_out["pg name"] = df.get("Pgcompanyid", "").apply(get_pg_company_name)
+        df_out["agency name"] = df.get("companyId", "").apply(get_company_name)
+    except Exception as e:
+        print(f"❌ Error in company name conversion: {e}")
+        df_out["pg name"] = ""
+        df_out["agency name"] = ""
     
     # Add reason field based on missing data logic
     def get_reason(row):
-        # Check if patient doesn't exist
-        if not row.get("PatientExist", True):
-            return "Patient Does Not Exist"
-        
-        # Check for insufficient data (missing patient name or MRN)
-        missing_patient_name = pd.isna(row["patientName"]) or str(row["patientName"]).strip() == ""
-        missing_mrn = pd.isna(row["mrn"]) or str(row["mrn"]).strip() == ""
-        
-        if missing_patient_name or missing_mrn:
-            return "Insufficient Data"
-        
-        # If all checks pass, return Success (will be filtered out)
-        return "Success"
+        try:
+            # Check if patient doesn't exist
+            if not row.get("PatientExist", True):
+                return "Patient Does Not Exist"
+            
+            # Check for insufficient data (missing patient name or MRN)
+            missing_patient_name = pd.isna(row.get("patientName", "")) or str(row.get("patientName", "")).strip() == ""
+            missing_mrn = pd.isna(row.get("mrn", "")) or str(row.get("mrn", "")).strip() == ""
+            
+            if missing_patient_name or missing_mrn:
+                return "Insufficient Data"
+            
+            # If all checks pass, return Success (will be filtered out)
+            return "Success"
+        except Exception as e:
+            print(f"❌ Error in get_reason function: {e}")
+            return "Error in Processing"
     
     df_out["reason"] = df.apply(get_reason, axis=1)
     
@@ -349,7 +378,16 @@ def process_single_company(company_key, start_date, end_date):
         
         # Step 9: Run Upload_Patients_Orders.py on the supreme Excel output
         print(f"\nStep 6: Uploading Patients and Orders for {company['name']}...")
+        print(f"   Input file: {supremesheet_output}")
+        print(f"   Company key: {company_key}")
+        
         try:
+            # Check if input file exists before calling Upload_Patients_Orders.py
+            if not os.path.exists(supremesheet_output):
+                print(f"❌ Input file {supremesheet_output} does not exist!")
+                return False
+            
+            print(f"   Calling Upload_Patients_Orders.py...")
             run_script("Upload_Patients_Orders.py", [supremesheet_output, company_key])
             
             # Verify that the expected output files were created
@@ -358,11 +396,15 @@ def process_single_company(company_key, start_date, end_date):
                 supremesheet_output.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
             ]
             
+            print(f"   Checking for expected files...")
             created_files = []
             for expected_file in expected_files:
                 if os.path.exists(expected_file):
                     created_files.append(expected_file)
                     print(f"✅ Created: {expected_file}")
+                    # Get file size
+                    file_size = os.path.getsize(expected_file)
+                    print(f"   File size: {file_size} bytes")
                 else:
                     print(f"❌ Missing: {expected_file}")
             
@@ -372,9 +414,15 @@ def process_single_company(company_key, start_date, end_date):
             else:
                 print(f"\n⚠️  Upload_Patients_Orders.py completed but some files are missing for {company['name']}.")
                 print(f"   Expected: {len(expected_files)} files, Created: {len(created_files)} files")
+                print(f"   Available files in directory:")
+                for f in os.listdir('.'):
+                    if f.endswith('.xlsx') and company_key in f:
+                        print(f"     - {f}")
             
         except Exception as e:
             print(f"\n❌ Error in Upload_Patients_Orders.py for {company['name']}: {e}")
+            import traceback
+            traceback.print_exc()
             return False
         
         print(f"\n✅ Upload_Patients_Orders.py finished for {company['name']}.")
