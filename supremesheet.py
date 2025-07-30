@@ -13,7 +13,8 @@ AUTH_HEADER = {
     "Authorization": "Bearer BwmWBqhXAEvG70Irt_1J8kJM8_4p81dStSUAeWXFho6d-Fu2Ymsox3qFLaQgZcX_EA-JjYi_MpiDS5FzulJ6hw2Qne5DearMdRfkkS_E8GaG5fy82RI_YhwM1cn-VtTQG5FSAjUPukOuJri8lPjQUZS1vzh9bRd3f3FQQlJxwzMKDfrqkt_03SR70bjDsKA9KYdJibMr5DBpaUkyJNzATdlewBwkeGEnX4EfzRj_mn_gm_G7Pjdo2qCCXbDhGeuH5lLuKvqFciQy_Wb8TEOR7Q"
 }
 
-PATIENT_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/company/pg/bc3a6a28-dd03-4cf3-95ba-2c5976619818"
+# PATIENT_API will be set dynamically based on company configuration
+PATIENT_API = None
 ENTITY_API = "https://dawaventity-g5a6apetdkambpcu.eastus-01.azurewebsites.net/api/Entity?EntityType=ANCILLIARY"
 
 def clean_doc_id(val):
@@ -52,7 +53,35 @@ def get_order_doc_api(doc_id):
         print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")
         return {}
 
+def set_patient_api_for_company(company_key=None):
+    """Set the PATIENT_API URL for a specific company."""
+    global PATIENT_API
+    from config import get_company_config, get_companies_to_process
+    
+    # If no company key provided, get the first company from the processing list
+    if company_key is None:
+        companies_to_process = get_companies_to_process()
+        if companies_to_process:
+            company_key = companies_to_process[0]
+            print(f"  [CONFIG] Using first company from processing list: {company_key}")
+        else:
+            print("  [ERROR] No companies configured for processing")
+            return
+    
+    try:
+        company = get_company_config(company_key)
+        pg_company_id = company['pg_company_id']
+        PATIENT_API = f"https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/company/pg/{pg_company_id}"
+        print(f"  [CONFIG] Set PATIENT_API for company {company_key} ({company['name']}): {PATIENT_API}")
+    except Exception as e:
+        print(f"  [ERROR] Failed to set PATIENT_API for company {company_key}: {e}")
+        return
+
 def get_all_patients():
+    if PATIENT_API is None:
+        print("  [ERROR] PATIENT_API not set. Please set company configuration first.")
+        return []
+    
     try:
         r = requests.get(PATIENT_API, timeout=20)
         data = r.json()
@@ -209,6 +238,10 @@ def main():
     if not os.path.exists(excel_file):
         print(f"Input file {excel_file} not found!")
         return
+    
+    # Set the PATIENT_API for the company using config
+    set_patient_api_for_company()
+    
     df = pd.read_excel(excel_file)
     print(f"[INFO] Loaded {len(df)} rows from {excel_file}")
     patients = get_all_patients()
