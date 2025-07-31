@@ -988,34 +988,34 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             # Process batch sequentially to avoid Selenium driver conflicts
             for doc_id in batch_doc_ids:
-            npi = ""
-            document_type = all_doc_types.get(doc_id, "")
-            
-            # Try up to 3 times for each document
-            for attempt in range(3):
-                try:
-                    npi = extract_npi_only(doc_id, driver)
-                    if npi:  # If we got an NPI, break
-                        break
-                    elif attempt < 2:  # If no NPI and not last attempt, retry
-                        log_console(f"🔄 Retrying {doc_id} (attempt {attempt + 2}/3)")
-                        time.sleep(1)  # Brief pause before retry
-                except Exception as e:
-                    if attempt < 2:
-                        log_console(f"⚠️ Error processing {doc_id} (attempt {attempt + 1}/3): {e}")
-                        time.sleep(1)
-                    else:
-                        log_console(f"❌ Failed to process {doc_id} after 3 attempts: {e}")
-            
-            record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
-            records.append(record)
-            filtered_records.append(record)
-            
-            log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
-            
-            # Progress update
-            processed = len(records)
-            log_console(f"📊 Progress: {processed}/{len(all_doc_ids)} ({processed/len(all_doc_ids)*100:.1f}%)")
+                npi = ""
+                document_type = all_doc_types.get(doc_id, "")
+                
+                # Try up to 3 times for each document
+                for attempt in range(3):
+                    try:
+                        npi = extract_npi_only(doc_id, driver)
+                        if npi:  # If we got an NPI, break
+                            break
+                        elif attempt < 2:  # If no NPI and not last attempt, retry
+                            log_console(f"🔄 Retrying {doc_id} (attempt {attempt + 2}/3)")
+                            time.sleep(1)  # Brief pause before retry
+                    except Exception as e:
+                        if attempt < 2:
+                            log_console(f"⚠️ Error processing {doc_id} (attempt {attempt + 1}/3): {e}")
+                            time.sleep(1)
+                        else:
+                            log_console(f"❌ Failed to process {doc_id} after 3 attempts: {e}")
+                
+                record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
+                records.append(record)
+                filtered_records.append(record)
+                
+                log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
+                
+                # Progress update
+                processed = len(records)
+                log_console(f"📊 Progress: {processed}/{len(all_doc_ids)} ({processed/len(all_doc_ids)*100:.1f}%)")
         
         final_records = filtered_records if filtered_records else records
         combined_df = pd.DataFrame(final_records)
