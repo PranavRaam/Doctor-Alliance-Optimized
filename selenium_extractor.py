@@ -986,8 +986,8 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             log_console(f"📦 Processing batch {batch_idx + 1}/{total_batches} ({len(batch_doc_ids)} documents)")
             
-                    # Process batch sequentially to avoid Selenium driver conflicts
-        for doc_id in batch_doc_ids:
+            # Process batch sequentially to avoid Selenium driver conflicts
+            for doc_id in batch_doc_ids:
             npi = ""
             document_type = all_doc_types.get(doc_id, "")
             
