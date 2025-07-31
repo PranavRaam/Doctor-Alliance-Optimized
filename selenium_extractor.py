@@ -731,7 +731,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     return doc_ids, getattr(extract_doc_ids_from_signed, 'doc_types', {})
 
 def extract_npi_only(doc_id, driver):
-    """Optimized NPI extraction with reduced page loads and faster processing."""
+    """Optimized NPI extraction with better error handling and debugging."""
     # Thread-safe counter
     if not hasattr(extract_npi_only, 'counter'):
         extract_npi_only.counter = 0
@@ -744,34 +744,40 @@ def extract_npi_only(doc_id, driver):
     # Reduced frequency of page refreshes
     if current_counter % 100 == 1:
         go_to_signed_list(driver)
-        time.sleep(0.05)  # Reduced sleep time
+        time.sleep(0.1)  # Slightly increased for stability
     
     detail_url = f"https://backoffice.doctoralliance.com/Documents2/Show/{doc_id}"
     
     try:
         driver.get(detail_url)
-        # Reduced wait time for faster processing
-        WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-    except:
+        # Increased wait time for better reliability
+        WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        time.sleep(0.5)  # Small delay for page to fully load
+    except Exception as e:
+        log_console(f"⚠️ Failed to load page for {doc_id}: {e}")
         return ""
         
     actual_url = driver.current_url
     if actual_url != detail_url:
-        return ""  # Reduced logging for speed
+        log_console(f"⚠️ Navigation failed for {doc_id}: {actual_url}")
+        return ""
     
-    # Optimized NPI extraction with faster XPath queries
+    # Enhanced NPI extraction with more XPath patterns
     xpaths_to_try = [
         "//span[contains(text(), 'NPI')]/following-sibling::span",
         "//p[contains(text(), 'NPI')]/span",
         "//div[contains(@class, 'physician')]//span[contains(text(), '1')]",
-        "//*[contains(text(), '1') and string-length(normalize-space(.)) = 10]"
+        "//*[contains(text(), '1') and string-length(normalize-space(.)) = 10]",
+        "//span[contains(text(), 'NPI')]/parent::*/span[2]",
+        "//div[contains(text(), 'NPI')]/following-sibling::div//span",
+        "//td[contains(text(), 'NPI')]/following-sibling::td//span",
+        "//label[contains(text(), 'NPI')]/following-sibling::span"
     ]
     
     npi = ""
     for xpath in xpaths_to_try:
         try:
-            # Reduced wait time for faster processing
-            element = WebDriverWait(driver, 0.3).until(EC.presence_of_element_located((By.XPATH, xpath)))
+            element = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, xpath)))
             text = element.text.strip()
             match = re.search(r'\b\d{10}\b', text)
             if match:
@@ -781,15 +787,34 @@ def extract_npi_only(doc_id, driver):
             continue
             
     if not npi:
-        # Faster page source extraction
+        # Enhanced page source extraction
         text = driver.page_source
-        match = re.search(r"\[(\d{10})\]", text)
-        if match:
-            npi = match.group(1)
-        else:
-            match = re.search(r'\b\d{10}\b', text)
+        
+        # Try multiple regex patterns
+        patterns = [
+            r"\[(\d{10})\]",
+            r'\b(\d{10})\b',
+            r'NPI[:\s]*(\d{10})',
+            r'National Provider Identifier[:\s]*(\d{10})'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                npi = match.group(0)
+                npi = match.group(1)
+                break
+    
+    # Debug logging for empty NPIs
+    if not npi:
+        log_console(f"⚠️ No NPI found for {doc_id} - checking page content...")
+        try:
+            # Try to find any 10-digit number on the page
+            text = driver.page_source
+            all_numbers = re.findall(r'\b\d{10}\b', text)
+            if all_numbers:
+                log_console(f"   Found numbers: {all_numbers[:3]}...")  # Show first 3
+        except:
+            pass
     
     return npi
 
@@ -935,33 +960,32 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             log_console(f"📦 Processing batch {batch_idx + 1}/{total_batches} ({len(batch_doc_ids)} documents)")
             
-            # Process batch with multiple threads
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                # Submit all NPI extraction tasks for this batch
-                future_to_doc_id = {
-                    executor.submit(extract_npi_only, doc_id, driver): doc_id 
-                    for doc_id in batch_doc_ids
-                }
-                
-                # Collect results as they complete
-                for future in concurrent.futures.as_completed(future_to_doc_id):
-                    doc_id = future_to_doc_id[future]
-                    try:
-                        npi = future.result()
-                        document_type = all_doc_types.get(doc_id, "")
-                        
-                        record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
-                        records.append(record)
-                        filtered_records.append(record)
-                        
-                        log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
-                        
-                    except Exception as e:
-                        log_console(f"❌ Error processing {doc_id}: {e}")
-                        # Add record with empty NPI
-                        record = {"Document ID": doc_id, "NPI": "", "Document Type": all_doc_types.get(doc_id, "")}
-                        records.append(record)
-                        filtered_records.append(record)
+                    # Process batch sequentially to avoid Selenium driver conflicts
+        for doc_id in batch_doc_ids:
+            npi = ""
+            document_type = all_doc_types.get(doc_id, "")
+            
+            # Try up to 3 times for each document
+            for attempt in range(3):
+                try:
+                    npi = extract_npi_only(doc_id, driver)
+                    if npi:  # If we got an NPI, break
+                        break
+                    elif attempt < 2:  # If no NPI and not last attempt, retry
+                        log_console(f"🔄 Retrying {doc_id} (attempt {attempt + 2}/3)")
+                        time.sleep(1)  # Brief pause before retry
+                except Exception as e:
+                    if attempt < 2:
+                        log_console(f"⚠️ Error processing {doc_id} (attempt {attempt + 1}/3): {e}")
+                        time.sleep(1)
+                    else:
+                        log_console(f"❌ Failed to process {doc_id} after 3 attempts: {e}")
+            
+            record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
+            records.append(record)
+            filtered_records.append(record)
+            
+            log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
             
             # Progress update
             processed = len(records)
