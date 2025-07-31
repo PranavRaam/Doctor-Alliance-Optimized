@@ -69,12 +69,12 @@ doctoralliance_orders_enhanced.db
 doctoralliance_orders_accuracy_focused.db
 
 # Excel Files (Generated Output)
-*.xlsx
-*.xls
-*.csv
-Combined/*.xlsx
-Combined/*.xls
-Combined/*.csv
+# *.xlsx
+# *.xls
+# *.csv
+# Combined/*.xlsx
+# Combined/*.xls
+# Combined/*.csv
 
 # PDF Files
 *.pdf
