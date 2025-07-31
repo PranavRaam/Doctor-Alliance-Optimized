@@ -1,0 +1,5 @@
+Processing Summary - 2025-07-31 14:17:38
+Date Range: 07/01/2025 to 07/26/2025
+Successfully processed: 3 out of 4 companies
+Successful companies: trucare, acohealth, health_quality_primary_care
+Failed companies: caring
