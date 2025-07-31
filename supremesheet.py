@@ -193,8 +193,10 @@ def get_companyid_by_careprovider_name(care_provider_name):
         best_score = 0
         best_id = ""
         for entity in entities:
-            entity_name = entity.get("name", "").strip().lower()
-            input_name = care_provider_name.strip().lower()
+            entity_name_raw = entity.get("name", "")
+            entity_name = entity_name_raw.strip().lower() if entity_name_raw else ""
+            input_name_raw = care_provider_name
+            input_name = input_name_raw.strip().lower() if input_name_raw else ""
             score = fuzz.token_set_ratio(entity_name, input_name)
             if score > best_score:
                 best_score = score
@@ -222,12 +224,14 @@ def create_patient_lookup_maps(patients):
         agency = patient.get("agencyInfo", {})
         
         # MRN mapping
-        mrn = agency.get("medicalRecordNo", "").strip()
+        mrn_raw = agency.get("medicalRecordNo")
+        mrn = str(mrn_raw).strip() if mrn_raw is not None else ""
         if mrn:
             mrn_map[mrn.upper()] = patient
         
         # DABackOfficeID mapping
-        dabackid = str(agency.get("daBackofficeID", "")).strip()
+        dabackid_raw = agency.get("daBackofficeID")
+        dabackid = str(dabackid_raw).strip() if dabackid_raw is not None else ""
         if dabackid:
             dabackid_map[dabackid] = patient
     
@@ -235,8 +239,10 @@ def create_patient_lookup_maps(patients):
 
 def match_patient_fast(row, mrn_map, dabackid_map):
     """Fast patient matching using lookup maps."""
-    mrn = str(row.get("mrn", "")).strip()
-    dabackid = str(row.get("DABackOfficeID", "")).strip() if "DABackOfficeID" in row else None
+    mrn_raw = row.get("mrn")
+    mrn = str(mrn_raw).strip() if mrn_raw is not None else ""
+    dabackid_raw = row.get("DABackOfficeID") if "DABackOfficeID" in row else None
+    dabackid = str(dabackid_raw).strip() if dabackid_raw is not None else ""
     
     # Try MRN first
     if mrn and mrn.upper() in mrn_map:
@@ -376,7 +382,7 @@ def process_row_data(row, doc_api, patients, mrn_map, dabackid_map):
     sendDate = try_date(doc_api.get("sendDate"))
     care_provider_name = doc_api.get("careProvider", "")
     
-    if not orderdate or str(orderdate).strip() == "" or str(orderdate).lower() in ["nan", "none"]:
+    if not orderdate or (isinstance(orderdate, str) and orderdate.strip() == "") or str(orderdate).lower() in ["nan", "none"]:
         orderdate = sendDate
 
     # SEX/GENDER LOGIC
@@ -458,9 +464,9 @@ def process_row_data(row, doc_api, patients, mrn_map, dabackid_map):
         out_row["companyId"] = companyid
         
         # If soc, cert_period_soe, cert_period_eoe are missing, fill from episodeDiagnoses
-        missing_soc = not soc or str(soc).strip() == "" or str(soc).lower() in ["nan", "none"]
-        missing_soe = not cert_period_soe or str(cert_period_soe).strip() == "" or str(cert_period_soe).lower() in ["nan", "none"]
-        missing_eoe = not cert_period_eoe or str(cert_period_eoe).strip() == "" or str(cert_period_eoe).lower() in ["nan", "none"]
+        missing_soc = not soc or (isinstance(soc, str) and soc.strip() == "") or str(soc).lower() in ["nan", "none"]
+        missing_soe = not cert_period_soe or (isinstance(cert_period_soe, str) and cert_period_soe.strip() == "") or str(cert_period_soe).lower() in ["nan", "none"]
+        missing_eoe = not cert_period_eoe or (isinstance(cert_period_eoe, str) and cert_period_eoe.strip() == "") or str(cert_period_eoe).lower() in ["nan", "none"]
         if (missing_soc or missing_soe or missing_eoe):
             soc2, soe2, eoe2 = fill_episode_dates(patient, orderdate)
             if missing_soc and soc2:

@@ -162,6 +162,12 @@ COMPANIES = {
         "pg_company_id": "03657233-8677-4c81-92c8-c19c3f64fc84",
         "helper_id": "ihelperph524",
         "description": "Caring - Healthcare and medical services"
+    },
+    "prima_care": {
+        "name": "PrimaCare",
+        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
+        "helper_id": "ihelperph7246",
+        "description": "PrimaCare - Healthcare and medical services"
     }
 }
 
