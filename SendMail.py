@@ -176,22 +176,41 @@ if __name__ == "__main__":
     base_filename = os.path.basename(input_file)
     name_without_ext = os.path.splitext(base_filename)[0]
     
+    # Get current date for naming
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    # Get PG name from company key in filename
+    def get_pg_name_from_filename(filename):
+        # Extract company key from filename
+        if "trucare" in filename.lower():
+            return "Trucare"
+        elif "acohealth" in filename.lower():
+            return "AcoHealth"
+        elif "health_quality_primary_care" in filename.lower():
+            return "Health_Quality_Primary_Care"
+        elif "caring" in filename.lower():
+            return "Caring"
+        else:
+            return "Unknown_PG"
+    
+    pg_name = get_pg_name_from_filename(input_file)
+    
     # Determine the type of file and create appropriate name and subject
-    if "failed" in input_file.lower() or "housecall" in input_file.lower():
+    if "failed_records_by_pg" in input_file.lower():
         # This is a failed records report
-        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        excel_out_path = os.path.join(xlsx_dir, f"{pg_name}_{current_date}_FAILED.xlsx")
         email_subject = "FAILED RECORDS REPORT"
     elif "with_patient_and_order_upload" in input_file.lower():
         # This is the final upload file
-        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        excel_out_path = os.path.join(xlsx_dir, f"{pg_name}_{current_date}_MAIN.xlsx")
         email_subject = "PATIENT SCRIPT - FINAL UPLOAD RESULTS"
-    elif "with_patient_upload" in input_file.lower():
-        # This is the patient upload file
-        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
-        email_subject = "PATIENT SCRIPT - PATIENT UPLOAD RESULTS"
+    elif "processing_summary" in input_file.lower():
+        # This is a summary report
+        excel_out_path = os.path.join(xlsx_dir, f"Processing_Summary_{current_date}.txt")
+        email_subject = "PATIENT SCRIPT - PROCESSING SUMMARY"
     else:
         # This is a main supreme Excel file
-        excel_out_path = os.path.join(xlsx_dir, f"{name_without_ext}_PROCESSED.xlsx")
+        excel_out_path = os.path.join(xlsx_dir, f"{pg_name}_{current_date}_MAIN.xlsx")
         email_subject = "PATIENT SCRIPT - MAIN RESULTS"
     
     df.to_excel(excel_out_path, index=False)

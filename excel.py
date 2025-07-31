@@ -85,7 +85,7 @@ company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
 # Read the Excel file
-input_file = "supreme_excel_hawthorn_adult_medicine.xlsx"
+input_file = "supreme_excel_health_quality_primary_care_with_patient_and_order_upload.xlsx"
 df = pd.read_excel(input_file)
 
 # Since PATIENTUPLOAD_STATUS doesn't exist, we'll process all records and identify issues

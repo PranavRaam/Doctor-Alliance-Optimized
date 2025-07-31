@@ -465,35 +465,78 @@ if __name__ == "__main__":
                 if success:
                     successful_companies.append(company_key)
                     
-                    # Send emails for each successful company
-                    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
-                    if os.path.exists(supremesheet_output):
-                        print(f"\n📧 Sending main supreme Excel for {company_key}...")
-                        run_script("SendMail.py", [supremesheet_output])
-                        print(f"✅ Main supreme Excel sent for {company_key}")
+                    # Send only the final upload file (with patient and order upload)
+                    final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+                    if os.path.exists(final_upload_file):
+                        print(f"\n📧 Sending final upload file: {final_upload_file}")
+                        run_script("SendMail.py", [final_upload_file])
+                        print(f"✅ Final upload file sent: {final_upload_file}")
+                    else:
+                        print(f"⚠️  Final upload file not found: {final_upload_file}")
                     
-                    # Send upload files if they exist
-                    upload_files = [
-                        f"supreme_excel_{company_key}_with_patient_upload.xlsx",
-                        f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+                    # Generate and send failed records report
+                    print(f"\n📊 Generating failed records report for {company_key}...")
+                    try:
+                        # Update excel.py to use the correct input file
+                        import subprocess
+                        import tempfile
+                        
+                        # Create a temporary script to run excel.py with the correct input file
+                        temp_script = f"""
+import sys
+sys.path.append('.')
+import excel
+# Update the input file in excel.py
+excel.input_file = "{final_upload_file}"
+# Run the main logic
+exec(open('excel.py').read())
+"""
+                        
+                        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+                            f.write(temp_script)
+                            temp_script_path = f.name
+                        
+                        # Run the temporary script
+                        result = subprocess.run([sys.executable, temp_script_path], capture_output=True, text=True)
+                        
+                        if result.returncode == 0:
+                            # Find the generated failed records file
+                            failed_records_files = glob.glob("failed_records_by_pg_*.xlsx")
+                            if failed_records_files:
+                                latest_failed_records = max(failed_records_files, key=os.path.getmtime)
+                                print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
+                                run_script("SendMail.py", [latest_failed_records])
+                                print(f"✅ Failed records report sent for {company_key}")
+                            else:
+                                print(f"⚠️  No failed records file generated for {company_key}")
+                        else:
+                            print(f"❌ Error generating failed records for {company_key}: {result.stderr}")
+                        
+                        # Clean up temporary file
+                        os.unlink(temp_script_path)
+                        
+                    except Exception as e:
+                        print(f"❌ Error in failed records generation for {company_key}: {e}")
+                    
+                    # Also send failed records Excel if it exists (legacy files)
+                    # Look for company-specific failed records files
+                    company_failed_patterns = [
+                        f"*{company_key}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
+                        f"*{company_key.replace('_', '')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
+                        f"*{company_key.replace('_', ' ')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
                     ]
                     
-                    for upload_file in upload_files:
-                        if os.path.exists(upload_file):
-                            print(f"\n📧 Sending upload file: {upload_file}")
-                            run_script("SendMail.py", [upload_file])
-                            print(f"✅ Upload file sent: {upload_file}")
-                        else:
-                            print(f"⚠️  Upload file not found: {upload_file}")
+                    failed_records_files = []
+                    for pattern in company_failed_patterns:
+                        failed_records_files.extend(glob.glob(pattern))
                     
-                    # Also send failed records Excel if it exists
-                    failed_records_pattern = f"*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
-                    failed_records_files = glob.glob(failed_records_pattern)
                     if failed_records_files:
                         latest_failed_records = max(failed_records_files, key=os.path.getmtime)
                         print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
                         run_script("SendMail.py", [latest_failed_records])
                         print(f"✅ Failed records report sent for {company_key}")
+                    else:
+                        print(f"⚠️  No failed records file found for {company_key}")
                         
             except Exception as e:
                 print(f"❌ Error processing {company_key}: {e}")
@@ -525,35 +568,78 @@ if __name__ == "__main__":
         success = process_single_company(company_key, start_date, end_date)
         
         if success:
-            # Send main supreme Excel
-            supremesheet_output = f"supreme_excel_{company_key}.xlsx"
-            print(f"\nStep 6: Sending main supreme Excel...")
-            run_script("SendMail.py", [supremesheet_output])
-            print("✅ Main supreme Excel sent!")
+            # Send only the final upload file (with patient and order upload)
+            final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+            if os.path.exists(final_upload_file):
+                print(f"\n📧 Sending final upload file: {final_upload_file}")
+                run_script("SendMail.py", [final_upload_file])
+                print(f"✅ Final upload file sent: {final_upload_file}")
+            else:
+                print(f"⚠️  Final upload file not found: {final_upload_file}")
             
-            # Send upload files if they exist
-            upload_files = [
-                f"supreme_excel_{company_key}_with_patient_upload.xlsx",
-                f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+            # Generate and send failed records report
+            print(f"\n📊 Generating failed records report for {company_key}...")
+            try:
+                # Update excel.py to use the correct input file
+                import subprocess
+                import tempfile
+                
+                # Create a temporary script to run excel.py with the correct input file
+                temp_script = f"""
+import sys
+sys.path.append('.')
+import excel
+# Update the input file in excel.py
+excel.input_file = "{final_upload_file}"
+# Run the main logic
+exec(open('excel.py').read())
+"""
+                
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+                    f.write(temp_script)
+                    temp_script_path = f.name
+                
+                # Run the temporary script
+                result = subprocess.run([sys.executable, temp_script_path], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    # Find the generated failed records file
+                    failed_records_files = glob.glob("failed_records_by_pg_*.xlsx")
+                    if failed_records_files:
+                        latest_failed_records = max(failed_records_files, key=os.path.getmtime)
+                        print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
+                        run_script("SendMail.py", [latest_failed_records])
+                        print(f"✅ Failed records report sent for {company_key}")
+                    else:
+                        print(f"⚠️  No failed records file generated for {company_key}")
+                else:
+                    print(f"❌ Error generating failed records for {company_key}: {result.stderr}")
+                
+                # Clean up temporary file
+                os.unlink(temp_script_path)
+                
+            except Exception as e:
+                print(f"❌ Error in failed records generation for {company_key}: {e}")
+            
+            # Also send failed records Excel if it exists (legacy files)
+            # Look for company-specific failed records files
+            company_failed_patterns = [
+                f"*{company_key}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
+                f"*{company_key.replace('_', '')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
+                f"*{company_key.replace('_', ' ')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
             ]
             
-            for upload_file in upload_files:
-                if os.path.exists(upload_file):
-                    print(f"\n📧 Sending upload file: {upload_file}")
-                    run_script("SendMail.py", [upload_file])
-                    print(f"✅ Upload file sent: {upload_file}")
-                else:
-                    print(f"⚠️  Upload file not found: {upload_file}")
+            failed_records_files = []
+            for pattern in company_failed_patterns:
+                failed_records_files.extend(glob.glob(pattern))
             
-            # Also send failed records Excel if it exists
-            # Look for files with PG company name and date range pattern
-            failed_records_pattern = f"*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
-            failed_records_files = glob.glob(failed_records_pattern)
             if failed_records_files:
                 latest_failed_records = max(failed_records_files, key=os.path.getmtime)
                 print(f"\n📧 Sending failed records report: {latest_failed_records}")
                 run_script("SendMail.py", [latest_failed_records])
                 print("✅ Failed records report sent!")
+            else:
+                print(f"⚠️  No failed records file found for {company_key}")
             
             print("\n✅ All steps finished. Check your mail for the reports!")
         else:
