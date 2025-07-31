@@ -91,10 +91,10 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "trucare",
-    "acohealth",
-    "health_quality_primary_care",
-    "caring"
+    "ssm_health_bone_joint",
+    "clinic_central_oklahoma",
+    "ssm_health_shawnee",
+    "community_physician_group"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -131,7 +131,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "trucare", "acohealth", "health_quality_primary_care", "caring"
+# Available company keys: "ssm_health_bone_joint", "clinic_central_oklahoma", "ssm_health_shawnee", "community_physician_group"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -139,29 +139,29 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "trucare": {
-        "name": "Trucare",
-        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
-        "helper_id": "ihelperph7244",
-        "description": "Trucare - Healthcare and medical services"
+    "ssm_health_bone_joint": {
+        "name": "SSM Health Bone & Joint Hospital",
+        "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
+        "helper_id": "ihelperph3232",
+        "description": "SSM Health Bone & Joint Hospital - Healthcare and medical services"
     },
-    "acohealth": {
-        "name": "AcoHealth",
-        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
-        "helper_id": "dallianceph125",
-        "description": "AcoHealth - Healthcare and medical services"
+    "clinic_central_oklahoma": {
+        "name": "The Clinic @ Central Oklahoma Family Medical Center",
+        "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
+        "helper_id": "dallianceph9212",
+        "description": "The Clinic @ Central Oklahoma Family Medical Center - Healthcare and medical services"
     },
-    "health_quality_primary_care": {
-        "name": "Health Quality Primary Care",
-        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
-        "helper_id": "ihelperph7245",
-        "description": "Health Quality Primary Care - Primary care services"
+    "ssm_health_shawnee": {
+        "name": "SSM Health Shawnee",
+        "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
+        "helper_id": "ihelperph323",
+        "description": "SSM Health Shawnee - Healthcare and medical services"
     },
-    "caring": {
-        "name": "Caring",
-        "pg_company_id": "03657233-8677-4c81-92c8-c19c3f64fc84",
-        "helper_id": "ihelperph524",
-        "description": "Caring - Healthcare and medical services"
+    "community_physician_group": {
+        "name": "Community Physician Group-CPG Clinics",
+        "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
+        "helper_id": "ihelperph11201",
+        "description": "Community Physician Group-CPG Clinics - Healthcare and medical services"
     }
 }
 
@@ -304,6 +304,26 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
+    "ssm_health_bone_joint": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for SSM Health Bone & Joint Hospital"
+    },
+    "clinic_central_oklahoma": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for The Clinic @ Central Oklahoma Family Medical Center"
+    },
+    "ssm_health_shawnee": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for SSM Health Shawnee"
+    },
+    "community_physician_group": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Community Physician Group-CPG Clinics"
+    },
     "grace_at_home": {
         "enabled": False,
         "allowed_types": [],
