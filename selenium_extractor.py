@@ -178,16 +178,29 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
                             log_console(f"⚠️ Debug: Failed to get company key, using fallback: {e}")
                     
                     # Filter for documents based on company configuration
-                    from config import should_filter_document_types, get_allowed_document_types
+                    from config import should_filter_document_types, get_allowed_document_types, get_document_type_filter
                     should_filter = should_filter_document_types(company_key)
-                    allowed_types = get_allowed_document_types(company_key)
+                    filter_config = get_document_type_filter(company_key)
+                    allowed_types = filter_config.get("allowed_types", [])
+                    excluded_types = filter_config.get("excluded_types", [])
                     
-                    log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}")
+                    log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}, Excluded types: {excluded_types}")
                     
-                    is_allowed_document = False
-                    if should_filter and allowed_types and doc_type:
+                    is_allowed_document = True  # Default to allow
+                    if should_filter and doc_type:
                         doc_type_upper = doc_type.upper()
-                        is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                        
+                        # Check if document type is explicitly excluded
+                        if excluded_types:
+                            is_excluded = any(excluded.lower() in doc_type_upper.lower() for excluded in excluded_types)
+                            if is_excluded:
+                                is_allowed_document = False
+                                log_console(f"📄 Inbox - Doc ID: {doc_id} | Type: {doc_type} ❌ (EXCLUDED - SKIPPED)")
+                            else:
+                                is_allowed_document = True
+                        # If no excluded types, check allowed types (backward compatibility)
+                        elif allowed_types:
+                            is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
                     
                     if is_allowed_document or not should_filter:
                         seen_ids.add(doc_id)
@@ -607,16 +620,29 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                                 log_console(f"⚠️ Debug: Failed to get company key, using fallback: {e}")
                         
                         # Filter for documents based on company configuration
-                        from config import should_filter_document_types, get_allowed_document_types
+                        from config import should_filter_document_types, get_allowed_document_types, get_document_type_filter
                         should_filter = should_filter_document_types(company_key)
-                        allowed_types = get_allowed_document_types(company_key)
+                        filter_config = get_document_type_filter(company_key)
+                        allowed_types = filter_config.get("allowed_types", [])
+                        excluded_types = filter_config.get("excluded_types", [])
                         
-                        log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}")
+                        log_console(f"🔍 Debug: Company: {company_key}, Should filter: {should_filter}, Allowed types: {allowed_types}, Excluded types: {excluded_types}")
                         
-                        is_allowed_document = False
-                        if should_filter and allowed_types and doc_type:
+                        is_allowed_document = True  # Default to allow
+                        if should_filter and doc_type:
                             doc_type_upper = doc_type.upper()
-                            is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
+                            
+                            # Check if document type is explicitly excluded
+                            if excluded_types:
+                                is_excluded = any(excluded.lower() in doc_type_upper.lower() for excluded in excluded_types)
+                                if is_excluded:
+                                    is_allowed_document = False
+                                    log_console(f"📄 Signed - Doc ID: {doc_id} | Type: {doc_type} ❌ (EXCLUDED - SKIPPED)")
+                                else:
+                                    is_allowed_document = True
+                            # If no excluded types, check allowed types (backward compatibility)
+                            elif allowed_types:
+                                is_allowed_document = any(keyword in doc_type_upper for keyword in allowed_types)
                         
                         if is_allowed_document or not should_filter:
                             seen_ids.add(doc_id)
@@ -1002,12 +1028,17 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             log_console(f"📊 Success rate: {npi_found}/{len(final_records)} ({success_rate:.1f}%)")
             
             # Check if filtering was applied
-            from config import should_filter_document_types, get_allowed_document_types
+            from config import should_filter_document_types, get_document_type_filter
             should_filter = should_filter_document_types(company_key)
-            allowed_types = get_allowed_document_types(company_key)
+            filter_config = get_document_type_filter(company_key)
+            allowed_types = filter_config.get("allowed_types", [])
+            excluded_types = filter_config.get("excluded_types", [])
             
-            if should_filter and allowed_types:
-                log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
+            if should_filter and (allowed_types or excluded_types):
+                if excluded_types:
+                    log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents (excluded types: {', '.join(excluded_types)})")
+                else:
+                    log_console(f"📊 Filtered: {len(filtered_records)}/{len(records)} documents matched allowed types: {', '.join(allowed_types)}")
             else:
                 log_console(f"📊 No filtering applied: {len(final_records)} documents processed")
         else:

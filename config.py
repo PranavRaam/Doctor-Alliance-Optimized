@@ -327,8 +327,9 @@ DOCUMENT_TYPE_FILTERS = {
     },
     "prima_care": {
         "enabled": True,
-        "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT", "485CERT", "485 CERT"],
-        "description": "Only process 485 document types for Prima Care"
+        "allowed_types": ["485", "CERT", "RECERT", "485CERT", "485RECERT", "485CERT", "485 CERT", "POT", "CTI"],
+        "excluded_types": ["conversation"],
+        "description": "Process all document types except conversation for Prima Care"
     },
     "housecall_md": {
         "enabled": False,
