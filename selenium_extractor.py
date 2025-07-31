@@ -979,42 +979,8 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         
         log_console(f"🚀 Processing {len(all_doc_ids)} documents in {total_batches} batches of {batch_size}")
         
-        # Use ThreadPoolExecutor for concurrent processing
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        import threading
-        
-        # Thread-safe progress tracking
-        progress_lock = threading.Lock()
+        # Optimized sequential processing with better batching
         processed_count = 0
-        
-        def process_single_document(doc_id):
-            nonlocal processed_count
-            npi = ""
-            document_type = all_doc_types.get(doc_id, "")
-            
-            # Try up to 2 times for each document (reduced retries for speed)
-            for attempt in range(2):
-                try:
-                    npi = extract_npi_only(doc_id, driver)
-                    if npi:  # If we got an NPI, break
-                        break
-                    elif attempt < 1:  # If no NPI and not last attempt, retry
-                        time.sleep(0.5)  # Reduced wait time
-                except Exception as e:
-                    if attempt < 1:
-                        time.sleep(0.5)
-                    else:
-                        log_console(f"❌ Failed to process {doc_id} after 2 attempts: {e}")
-            
-            record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
-            
-            # Thread-safe progress update
-            with progress_lock:
-                processed_count += 1
-                if processed_count % 50 == 0:  # Log every 50 documents
-                    log_console(f"📊 Progress: {processed_count}/{len(all_doc_ids)} ({processed_count/len(all_doc_ids)*100:.1f}%)")
-            
-            return record
         
         for batch_idx in range(total_batches):
             start_idx = batch_idx * batch_size
@@ -1023,27 +989,36 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             log_console(f"📦 Processing batch {batch_idx + 1}/{total_batches} ({len(batch_doc_ids)} documents)")
             
-            # Process batch with concurrent execution
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                # Submit all documents in batch
-                future_to_doc = {executor.submit(process_single_document, doc_id): doc_id for doc_id in batch_doc_ids}
+            # Process batch sequentially but with optimized settings
+            for doc_id in batch_doc_ids:
+                npi = ""
+                document_type = all_doc_types.get(doc_id, "")
                 
-                # Collect results as they complete
-                for future in as_completed(future_to_doc):
-                    doc_id = future_to_doc[future]
+                # Try up to 2 times for each document (reduced retries for speed)
+                for attempt in range(2):
                     try:
-                        record = future.result()
-                        records.append(record)
-                        filtered_records.append(record)
-                        
-                        # Log successful processing
-                        log_console(f"✅ {doc_id}  NPI: {record['NPI']}  Type: {record['Document Type']} (PROCESSED)")
-                        
+                        npi = extract_npi_only(doc_id, driver)
+                        if npi:  # If we got an NPI, break
+                            break
+                        elif attempt < 1:  # If no NPI and not last attempt, retry
+                            time.sleep(0.3)  # Reduced wait time
                     except Exception as e:
-                        log_console(f"❌ Error processing {doc_id}: {e}")
-                        # Add empty record for failed documents
-                        records.append({"Document ID": doc_id, "NPI": "", "Document Type": all_doc_types.get(doc_id, "")})
-                        filtered_records.append({"Document ID": doc_id, "NPI": "", "Document Type": all_doc_types.get(doc_id, "")})
+                        if attempt < 1:
+                            time.sleep(0.3)
+                        else:
+                            log_console(f"❌ Failed to process {doc_id} after 2 attempts: {e}")
+                
+                record = {"Document ID": doc_id, "NPI": npi, "Document Type": document_type}
+                records.append(record)
+                filtered_records.append(record)
+                
+                # Progress update (less frequent logging for speed)
+                processed_count += 1
+                if processed_count % 25 == 0:  # Log every 25 documents
+                    log_console(f"📊 Progress: {processed_count}/{len(all_doc_ids)} ({processed_count/len(all_doc_ids)*100:.1f}%)")
+                
+                # Log successful processing
+                log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
         
         final_records = filtered_records if filtered_records else records
         combined_df = pd.DataFrame(final_records)
