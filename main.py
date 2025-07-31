@@ -132,7 +132,7 @@ def clean_company_name(name):
 
 def create_failed_records_excel(supreme_excel_path, company_key, start_date, end_date):
     """Create failed records Excel file from supreme Excel output."""
-    print(f"📊 Creating failed records report from: {supreme_excel_path}")
+    print(f"Creating failed records report from: {supreme_excel_path}")
     
     # Load mappings
     company_mapping = load_company_mapping()
@@ -142,11 +142,11 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
     df = pd.read_excel(supreme_excel_path)
     
     # Debug: Print available columns
-    print(f"📊 Available columns in supreme Excel: {list(df.columns)}")
+    print(f"Available columns in supreme Excel: {list(df.columns)}")
     
     # Check if PATIENTUPLOAD_STATUS column exists (only added by Upload_Patients_Orders.py)
     if "PATIENTUPLOAD_STATUS" not in df.columns:
-        print("📊 PATIENTUPLOAD_STATUS column not found. Creating failed records based on PatientExist status...")
+        print("PATIENTUPLOAD_STATUS column not found. Creating failed records based on PatientExist status...")
         # Check if PatientExist column exists
         if "PatientExist" not in df.columns:
             print("❌ PatientExist column not found either. Cannot create failed records report.")
@@ -157,7 +157,7 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
         # Filter for only failed and skipped records
         df = df[df["PATIENTUPLOAD_STATUS"].isin(["FALSE", "SKIPPED"])]
     
-    print(f"📊 Processing {len(df)} failed/skipped records...")
+    print(f"Processing {len(df)} failed/skipped records...")
     
     # Check if we have any records to process
     if len(df) == 0:
@@ -237,7 +237,7 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
     # Filter for failed/skipped records only (exclude successful ones)
     df_out = df_out[df_out["reason"] != "Success"]
     
-    print(f"📊 Found {len(df_out)} failed/skipped records with issues out of {len(df)} total failed/skipped records")
+    print(f"Found {len(df_out)} failed/skipped records with issues out of {len(df)} total failed/skipped records")
     
     # Check if we have any records with issues
     if len(df_out) == 0:
@@ -283,7 +283,7 @@ def create_failed_records_excel(supreme_excel_path, company_key, start_date, end
     
     print(f"\n📁 Created failed records file: {output_filename}")
     print(f"📋 Total sheets: {len(grouped)}")
-    print(f"📊 Total failed records: {len(df_out)}")
+    print(f"Total failed records: {len(df_out)}")
     
     return output_filename
 
@@ -475,7 +475,7 @@ if __name__ == "__main__":
                         print(f"⚠️  Final upload file not found: {final_upload_file}")
                     
                     # Generate and send failed records report
-                    print(f"\n📊 Generating failed records report for {company_key}...")
+                    print(f"\nGenerating failed records report for {company_key}...")
                     try:
                         # Update excel.py to use the correct input file
                         import subprocess
@@ -578,7 +578,7 @@ exec(open('excel.py').read())
                 print(f"⚠️  Final upload file not found: {final_upload_file}")
             
             # Generate and send failed records report
-            print(f"\n📊 Generating failed records report for {company_key}...")
+            print(f"\nGenerating failed records report for {company_key}...")
             try:
                 # Update excel.py to use the correct input file
                 import subprocess

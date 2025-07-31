@@ -151,26 +151,44 @@ if __name__ == "__main__":
     xlsx_dir = os.path.join(today_str, "xlsx")
     os.makedirs(xlsx_dir, exist_ok=True)
 
-    # 2. Read Excel
-    print(f"Reading Excel: {input_file}")
-    try:
-        df = pd.read_excel(input_file)
-        print(f"✅ Successfully read Excel with {len(df)} rows and {len(df.columns)} columns")
-    except Exception as e:
-        print(f"❌ Error reading Excel file: {e}")
-        sys.exit(1)
+    # 2. Read file (Excel or text)
+    print(f"Reading file: {input_file}")
+    
+    # Check if it's a text file
+    if input_file.lower().endswith('.txt'):
+        try:
+            # For text files, read as text and create a simple DataFrame
+            with open(input_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Create a simple DataFrame with the content
+            df = pd.DataFrame({'Content': [content]})
+            print(f"✅ Successfully read text file with content length: {len(content)} characters")
+        except Exception as e:
+            print(f"❌ Error reading text file: {e}")
+            sys.exit(1)
+    else:
+        try:
+            df = pd.read_excel(input_file)
+            print(f"✅ Successfully read Excel with {len(df)} rows and {len(df.columns)} columns")
+        except Exception as e:
+            print(f"❌ Error reading Excel file: {e}")
+            sys.exit(1)
 
-    # 3. Replace companyid and Pgcompanyid
-    try:
-        df = replace_ids_with_names(df)
-    except Exception as e:
-        print(f"❌ Error in replace_ids_with_names: {e}")
-        print("Continuing without name replacement...")
-        # Add default columns if they don't exist
-        if 'ANCILLIARYName' not in df.columns:
-            df['ANCILLIARYName'] = "N/A"
-        if 'PRACTICEName' not in df.columns:
-            df['PRACTICEName'] = "N/A"
+    # 3. Replace companyid and Pgcompanyid (only for Excel files)
+    if not input_file.lower().endswith('.txt'):
+        try:
+            df = replace_ids_with_names(df)
+        except Exception as e:
+            print(f"❌ Error in replace_ids_with_names: {e}")
+            print("Continuing without name replacement...")
+            # Add default columns if they don't exist
+            if 'ANCILLIARYName' not in df.columns:
+                df['ANCILLIARYName'] = "N/A"
+            if 'PRACTICEName' not in df.columns:
+                df['PRACTICEName'] = "N/A"
+    else:
+        print("Skipping name replacement for text file")
 
     # 4. Save as new Excel for emailing with better naming
     base_filename = os.path.basename(input_file)
@@ -206,15 +224,30 @@ if __name__ == "__main__":
         email_subject = "PATIENT SCRIPT - FINAL UPLOAD RESULTS"
     elif "processing_summary" in input_file.lower():
         # This is a summary report
-        excel_out_path = os.path.join(xlsx_dir, f"Processing_Summary_{current_date}.txt")
+        if input_file.lower().endswith('.txt'):
+            # For text files, just copy the file
+            excel_out_path = os.path.join(xlsx_dir, f"Processing_Summary_{current_date}.txt")
+            # Copy the original file content
+            with open(input_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            with open(excel_out_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+        else:
+            excel_out_path = os.path.join(xlsx_dir, f"Processing_Summary_{current_date}.xlsx")
+            df.to_excel(excel_out_path, index=False)
         email_subject = "PATIENT SCRIPT - PROCESSING SUMMARY"
     else:
         # This is a main supreme Excel file
         excel_out_path = os.path.join(xlsx_dir, f"{pg_name}_{current_date}_MAIN.xlsx")
         email_subject = "PATIENT SCRIPT - MAIN RESULTS"
     
-    df.to_excel(excel_out_path, index=False)
-    print(f"Excel saved as {excel_out_path}")
+    # Save file based on type
+    if excel_out_path.lower().endswith('.txt'):
+        # For text files, content is already saved above
+        print(f"Text file saved as {excel_out_path}")
+    else:
+        df.to_excel(excel_out_path, index=False)
+        print(f"Excel saved as {excel_out_path}")
 
     # 5. Send mail with appropriate subject
     print(f"Sending email with subject: {email_subject}...")

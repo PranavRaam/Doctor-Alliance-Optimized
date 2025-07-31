@@ -89,7 +89,7 @@ input_file = "supreme_excel_health_quality_primary_care_with_patient_and_order_u
 df = pd.read_excel(input_file)
 
 # Since PATIENTUPLOAD_STATUS doesn't exist, we'll process all records and identify issues
-print(f"📊 Processing {len(df)} total records...")
+print(f"Processing {len(df)} total records...")
 
 # Check if we have any records to process
 if len(df) == 0:
@@ -129,7 +129,7 @@ df_out["reason"] = df.apply(get_reason, axis=1)
 # Filter for records with issues only (exclude successful ones)
 df_out = df_out[df_out["reason"] != "Success"]
 
-print(f"📊 Found {len(df_out)} records with issues out of {len(df)} total records")
+print(f"Found {len(df_out)} records with issues out of {len(df)} total records")
 
 # Check if we have any records with issues
 if len(df_out) == 0:
@@ -164,6 +164,6 @@ with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
 
 print(f"\n📁 Created single file: {output_filename}")
 print(f"📋 Total sheets: {len(grouped)}")
-print(f"📊 Total records with issues: {len(df_out)}")
+print(f"Total records with issues: {len(df_out)}")
 
-print(f"\n🎯 Combined records with issues processing complete!")
+print(f"\nCombined records with issues processing complete!")
