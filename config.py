@@ -91,10 +91,10 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "ssm_health_bone_joint",
-    "clinic_central_oklahoma",
-    "ssm_health_shawnee",
-    "community_physician_group"
+    "infectious_diseases_consultants_okc",
+    "pushmataha_family_medical",
+    "crescent_infectious_diseases",
+    "norman_regional_ortho_central"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -139,29 +139,29 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "ssm_health_bone_joint": {
-        "name": "SSM Health Bone & Joint Hospital",
-        "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
-        "helper_id": "ihelperph3232",
-        "description": "SSM Health Bone & Joint Hospital - Healthcare and medical services"
+    "infectious_diseases_consultants_okc": {
+        "name": "Infectious Diseases Consultants of Oklahoma City",
+        "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
+        "helper_id": "ihelperph9223",
+        "description": "Infectious Diseases Consultants of Oklahoma City - Infectious disease medical services"
     },
-    "clinic_central_oklahoma": {
-        "name": "The Clinic @ Central Oklahoma Family Medical Center",
-        "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
-        "helper_id": "dallianceph9212",
-        "description": "The Clinic @ Central Oklahoma Family Medical Center - Healthcare and medical services"
+    "pushmataha_family_medical": {
+        "name": "Pushmataha Family Medical Center",
+        "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
+        "helper_id": "ihelperph9221",
+        "description": "Pushmataha Family Medical Center - Family medical services"
     },
-    "ssm_health_shawnee": {
-        "name": "SSM Health Shawnee",
-        "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
-        "helper_id": "ihelperph323",
-        "description": "SSM Health Shawnee - Healthcare and medical services"
+    "crescent_infectious_diseases": {
+        "name": "Crescent Infectious Diseases",
+        "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
+        "helper_id": "handrewph7202",
+        "description": "Crescent Infectious Diseases - Infectious disease medical services"
     },
-    "community_physician_group": {
-        "name": "Community Physician Group-CPG Clinics",
-        "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
-        "helper_id": "ihelperph11201",
-        "description": "Community Physician Group-CPG Clinics - Healthcare and medical services"
+    "norman_regional_ortho_central": {
+        "name": "Norman Regional - Ortho Central",
+        "pg_company_id": "",
+        "helper_id": "ihelperph22459",
+        "description": "Norman Regional - Ortho Central - Orthopedic medical services"
     }
 }
 
@@ -304,25 +304,25 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
-    "ssm_health_bone_joint": {
+    "infectious_diseases_consultants_okc": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for SSM Health Bone & Joint Hospital"
+        "description": "Process all document types for Infectious Diseases Consultants of Oklahoma City"
     },
-    "clinic_central_oklahoma": {
+    "pushmataha_family_medical": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for The Clinic @ Central Oklahoma Family Medical Center"
+        "description": "Process all document types for Pushmataha Family Medical Center"
     },
-    "ssm_health_shawnee": {
+    "crescent_infectious_diseases": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for SSM Health Shawnee"
+        "description": "Process all document types for Crescent Infectious Diseases"
     },
-    "community_physician_group": {
+    "norman_regional_ortho_central": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Community Physician Group-CPG Clinics"
+        "description": "Process all document types for Norman Regional - Ortho Central"
     },
     "grace_at_home": {
         "enabled": False,
