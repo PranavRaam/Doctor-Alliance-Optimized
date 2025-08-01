@@ -87,11 +87,10 @@ DATE_RANGE = {
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
     # Uncomment and modify the companies you want to process
-    # "housecall_md",
-    # "los_cerros", 
-    # "rocky_mountain"
-    # "prima_care"
-    "grace_at_home"
+    # "trucare",
+    # "acohealth", 
+    # "carney_hospital"
+    # "health_quality_primary_care"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -325,11 +324,6 @@ DOCUMENT_TYPE_FILTERS = {
         "enabled": False,
         "allowed_types": [],
         "description": "Process all document types for CityWide Housecalls, LLC"
-    },
-    "grace_at_home": {
-        "enabled": False,
-        "allowed_types": [],
-        "description": "Process all document types for Grace at Home"
     },
     "covenant_care": {
         "enabled": False,
