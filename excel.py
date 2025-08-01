@@ -70,7 +70,7 @@ def get_company_name(company_id):
 
 def clean_company_name(name):
     """Clean company name for use in filename."""
-    if pd.isna(name) or name == "Unknown":
+    if pd.isna(name) or name == "Unknown" or str(name).strip() == "":
         return "Unknown_Company"
     
     # Remove special characters and replace spaces with underscores
@@ -78,6 +78,11 @@ def clean_company_name(name):
     cleaned = cleaned.replace(' ', '_').replace('-', '_').replace('.', '_')
     # Remove any remaining special characters
     cleaned = ''.join(c for c in cleaned if c.isalnum() or c == '_')
+    
+    # Ensure we have at least one character
+    if not cleaned or len(cleaned.strip()) == 0:
+        return "Unknown_Company"
+    
     return cleaned
 
 # Load mappings
