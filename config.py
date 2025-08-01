@@ -91,10 +91,7 @@ MULTIPLE_COMPANIES = [
     # "los_cerros", 
     # "rocky_mountain"
     # "prima_care"
-    "infectious_diseases_consultants_okc",
-    "pushmataha_family_medical",
-    "crescent_infectious_diseases",
-    "norman_regional_ortho_central"
+    "grace_at_home"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -139,29 +136,29 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "infectious_diseases_consultants_okc": {
-        "name": "Infectious Diseases Consultants of Oklahoma City",
-        "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
-        "helper_id": "ihelperph9223",
-        "description": "Infectious Diseases Consultants of Oklahoma City - Infectious disease medical services"
+    "trucare": {
+        "name": "Trucare",
+        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
+        "helper_id": "ihelperph7244",
+        "description": "Trucare - Medical services"
     },
-    "pushmataha_family_medical": {
-        "name": "Pushmataha Family Medical Center",
-        "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
-        "helper_id": "ihelperph9221",
-        "description": "Pushmataha Family Medical Center - Family medical services"
+    "acohealth": {
+        "name": "AcoHealth",
+        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
+        "helper_id": "dallianceph125",
+        "description": "AcoHealth - Healthcare services"
     },
-    "crescent_infectious_diseases": {
-        "name": "Crescent Infectious Diseases",
-        "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
-        "helper_id": "handrewph7202",
-        "description": "Crescent Infectious Diseases - Infectious disease medical services"
+    "carney_hospital": {
+        "name": "Carney Hospital",
+        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
+        "helper_id": "ihelperph6231",
+        "description": "Carney Hospital - Hospital services"
     },
-    "norman_regional_ortho_central": {
-        "name": "Norman Regional - Ortho Central",
-        "pg_company_id": "",
-        "helper_id": "ihelperph22459",
-        "description": "Norman Regional - Ortho Central - Orthopedic medical services"
+    "health_quality_primary_care": {
+        "name": "Health Quality Primary Care",
+        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
+        "helper_id": "ihelperph7245",
+        "description": "Health Quality Primary Care - Primary care services"
     }
 }
 
@@ -169,7 +166,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = ""  # Options: "housecall_md", "los_cerros", "rocky_mountain"
+ACTIVE_COMPANY = "trucare"  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -304,25 +301,30 @@ def show_active_company():
 
 # Document type filtering for specific companies
 DOCUMENT_TYPE_FILTERS = {
-    "infectious_diseases_consultants_okc": {
+    "clinics_of_north_texas": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Infectious Diseases Consultants of Oklahoma City"
+        "description": "Process all document types for CLINICS OF NORTH TEXAS LLP"
     },
-    "pushmataha_family_medical": {
+    "doctors_at_home": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Pushmataha Family Medical Center"
+        "description": "Process all document types for Doctors at Home - Mary Snellings MD"
     },
-    "crescent_infectious_diseases": {
+    "spectrum_health_solutions": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Crescent Infectious Diseases"
+        "description": "Process all document types for Spectrum Health Solutions (Community First Primary Care)"
     },
-    "norman_regional_ortho_central": {
+    "royal_vp": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Norman Regional - Ortho Central"
+        "description": "Process all document types for Royal V.P., LLC"
+    },
+    "citywide_housecalls": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for CityWide Housecalls, LLC"
     },
     "grace_at_home": {
         "enabled": False,
@@ -359,6 +361,26 @@ DOCUMENT_TYPE_FILTERS = {
         "enabled": False,
         "allowed_types": [],
         "description": "Process all document types for Rocky Mountain"
+    },
+    "trucare": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Trucare"
+    },
+    "acohealth": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for AcoHealth"
+    },
+    "carney_hospital": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Carney Hospital"
+    },
+    "health_quality_primary_care": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Health Quality Primary Care"
     }
 }
 

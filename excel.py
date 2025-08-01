@@ -90,11 +90,11 @@ company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
 # Read the Excel file
-input_file = "supreme_excel_health_quality_primary_care_with_patient_and_order_upload.xlsx"
+input_file = "supreme_excel_internal_medicine_associates_okc.xlsx"
 df = pd.read_excel(input_file)
 
-# Since PATIENTUPLOAD_STATUS doesn't exist, we'll process all records and identify issues
-print(f"Processing {len(df)} total records...")
+# Process all records and identify data quality issues (not patient creation status)
+print(f"Processing {len(df)} total records for data quality issues...")
 
 # Check if we have any records to process
 if len(df) == 0:
@@ -115,16 +115,19 @@ df_out["agency name"] = df["companyId"].apply(get_company_name)
 
 # Add reason field based on missing data logic
 def get_reason(row):
-    # Check if patient doesn't exist
-    if not row.get("PatientExist", True):
-        return "Patient Does Not Exist"
-    
     # Check for insufficient data (missing patient name or MRN)
     missing_patient_name = pd.isna(row["patientName"]) or str(row["patientName"]).strip() == ""
     missing_mrn = pd.isna(row["mrn"]) or str(row["mrn"]).strip() == ""
     
     if missing_patient_name or missing_mrn:
         return "Insufficient Data"
+    
+    # Check for missing required fields
+    missing_doc_id = pd.isna(row["Document ID"]) or str(row["Document ID"]).strip() == ""
+    missing_dabackofficeid = pd.isna(row["DABackOfficeID"]) or str(row["DABackOfficeID"]).strip() == ""
+    
+    if missing_doc_id or missing_dabackofficeid:
+        return "Missing Required Fields"
     
     # If all checks pass, return Success (will be filtered out)
     return "Success"
@@ -171,4 +174,5 @@ print(f"\n📁 Created single file: {output_filename}")
 print(f"📋 Total sheets: {len(grouped)}")
 print(f"Total records with issues: {len(df_out)}")
 
-print(f"\nCombined records with issues processing complete!")
+print(f"\nData quality analysis complete!")
+print(f"Note: PatientExist=FALSE records are valid new patient creation scenarios, not failures.")
