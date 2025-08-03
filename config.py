@@ -79,20 +79,19 @@ FIELD_EXTRACTION_CONFIG = {
 # ===========================================
 
 # Date range for processing (MM/DD/YYYY format)
+# Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
     "start_date": "07/01/2025",
-    "end_date": "07/26/2025",
+    "end_date": "07/30/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    # Uncomment and modify the companies you want to process
-    # "trucare",
-    # "acohealth", 
-    # "carney_hospital"
-    # "health_quality_primary_care"
+    "traveling_doctors",
+    "restore_family_medical_clinic",
+    "tpch_practice_dr_tradewell",
+    "community_health_centers_oklahoma"
 ]
-
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
 PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
@@ -135,37 +134,38 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "trucare": {
-        "name": "Trucare",
-        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
-        "helper_id": "ihelperph7244",
-        "description": "Trucare - Medical services"
-    },
-    "acohealth": {
-        "name": "AcoHealth",
-        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
-        "helper_id": "dallianceph125",
-        "description": "AcoHealth - Healthcare services"
-    },
-    "carney_hospital": {
-        "name": "Carney Hospital",
-        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
-        "helper_id": "ihelperph6231",
-        "description": "Carney Hospital - Hospital services"
-    },
-    "health_quality_primary_care": {
-        "name": "Health Quality Primary Care",
-        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
-        "helper_id": "ihelperph7245",
-        "description": "Health Quality Primary Care - Primary care services"
-    }
+"traveling_doctors": {
+    "name": "Traveling at Doctors",
+    "pg_company_id": "8cd766e5-6e19-492e-a1a9-6595d81d20ee",
+    "helper_id": "ihelperph525",
+    "description": "Traveling at Doctors - Mobile healthcare services"
+},
+"restore_family_medical_clinic": {
+    "name": "Restore Family Medical Clinic",
+    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+    "helper_id": "acooperph1020",
+    "description": "Restore Family Medical Clinic - Family medical services"
+},
+"tpch_practice_dr_tradewell": {
+    "name": "TPCH Practice/ Dr. Tradewell",
+    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
+    "helper_id": "handrewph12",
+    "description": "TPCH Practice/ Dr. Tradewell - Medical practice services"
+},
+"community_health_centers_oklahoma": {
+    "name": "Community Health Centers, Inc Oklahoma",
+    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
+    "helper_id": "ihelperph22478",
+    "description": "Community Health Centers, Inc Oklahoma - Community health services"
 }
+}
+
 
 # Default company to use
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "trucare"  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
+ACTIVE_COMPANY = ""  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
 
 # Function to get companies to process
 def get_companies_to_process():

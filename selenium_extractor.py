@@ -42,7 +42,10 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
     page = 1
     start_cutoff_date = datetime.strptime(start_date, "%m/%d/%Y")
     end_cutoff_date = datetime.strptime(end_date, "%m/%d/%Y") if end_date else None
-    seen_ids = set()
+    # Use shared seen_ids to prevent duplicates across inbox and signed
+    if not hasattr(extract_doc_ids_from_inbox, 'shared_seen_ids'):
+        extract_doc_ids_from_inbox.shared_seen_ids = set()
+    seen_ids = extract_doc_ids_from_inbox.shared_seen_ids
     processed_urls = set()
     consecutive_no_new_docs = 0
     max_consecutive_no_new = 3
@@ -466,7 +469,11 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
 
 def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     doc_ids = []
-    seen_ids = set()
+    # Use shared seen_ids to prevent duplicates across inbox and signed
+    # Use the same shared_seen_ids as inbox function
+    if not hasattr(extract_doc_ids_from_inbox, 'shared_seen_ids'):
+        extract_doc_ids_from_inbox.shared_seen_ids = set()
+    seen_ids = extract_doc_ids_from_inbox.shared_seen_ids
     
     try:
         log_console("Navigating to Signed tab...")
@@ -547,7 +554,8 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             pass
             
         page = 1
-        while True:
+        max_pages = 100  # Safety limit to prevent infinite loops
+        while page <= max_pages:
             log_console(f"📄 Signed docs page {page}")
             
             try:
@@ -659,15 +667,17 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                     log_console(f"⚠️ Error extracting doc_id in signed tab: {e}")
                     continue
                     
-            if len(table_rows) < 10:
-                break
-                
+            # Check if there's a next page available
             try:
                 next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
+                # Check if the next button is disabled or not clickable
+                if "disabled" in next_button.get_attribute("class") or "disabled" in next_button.get_attribute("aria-disabled"):
+                    log_console("✅ Reached last page (next button disabled)")
+                    break
                 next_button.click()
                 time.sleep(2)
             except Exception as e:
-                log_console(f"⚠️ Next button not found in signed tab, breaking. {e}")
+                log_console(f"✅ No more pages available in signed tab: {e}")
                 break
                 
             page += 1
@@ -722,14 +732,17 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                                 except Exception as e:
                                     continue
                         
-                        if len(table_rows) < 10:
-                            break
-                            
+                        # Check if there's a next page available
                         try:
                             next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
+                            # Check if the next button is disabled or not clickable
+                            if "disabled" in next_button.get_attribute("class") or "disabled" in next_button.get_attribute("aria-disabled"):
+                                log_console("✅ Reached last page on retry (next button disabled)")
+                                break
                             next_button.click()
                             time.sleep(3)
                         except Exception as e:
+                            log_console(f"✅ No more pages available on retry: {e}")
                             break
                             
                         page += 1
@@ -844,7 +857,32 @@ def extract_npi_only(doc_id, driver):
     
     return npi
 
+def reset_extraction_state():
+    """Reset global state to prevent duplicate processing across multiple company runs."""
+    # Reset doc_types for both extraction functions
+    if hasattr(extract_doc_ids_from_inbox, 'doc_types'):
+        delattr(extract_doc_ids_from_inbox, 'doc_types')
+    if hasattr(extract_doc_ids_from_signed, 'doc_types'):
+        delattr(extract_doc_ids_from_signed, 'doc_types')
+    
+    # Reset company_key for both extraction functions
+    if hasattr(extract_doc_ids_from_inbox, 'company_key'):
+        delattr(extract_doc_ids_from_inbox, 'company_key')
+    if hasattr(extract_doc_ids_from_signed, 'company_key'):
+        delattr(extract_doc_ids_from_signed, 'company_key')
+    
+    # Reset shared seen_ids to prevent duplicates across companies
+    if hasattr(extract_doc_ids_from_inbox, 'shared_seen_ids'):
+        delattr(extract_doc_ids_from_inbox, 'shared_seen_ids')
+    if hasattr(extract_doc_ids_from_signed, 'shared_seen_ids'):
+        delattr(extract_doc_ids_from_signed, 'shared_seen_ids')
+    
+    log_console("🔄 Reset extraction state for new company processing")
+
 def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_date, end_date=None, company_key=None):
+    # Reset global state to prevent duplicate processing
+    reset_extraction_state()
+    
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
     if company_key:

@@ -90,7 +90,7 @@ company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
 # Read the Excel file
-input_file = "supreme_excel_internal_medicine_associates_okc.xlsx"
+input_file = "patient_and_order_upload_files\supreme_excel_texas_infectious_disease_institute_with_patient_and_order_upload.xlsx"
 df = pd.read_excel(input_file)
 
 # Process all records and identify data quality issues (not patient creation status)
