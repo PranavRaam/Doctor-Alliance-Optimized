@@ -555,8 +555,12 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             
         page = 1
         max_pages = 100  # Safety limit to prevent infinite loops
+        consecutive_no_new_docs = 0
+        max_consecutive_no_new = 3  # Stop after 3 consecutive pages with no new documents
+        
         while page <= max_pages:
             log_console(f"📄 Signed docs page {page}")
+            new_docs_on_page = 0  # Count new documents found on this page
             
             try:
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
@@ -666,6 +670,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                         if is_allowed_document or not should_filter:
                             seen_ids.add(doc_id)
                             doc_ids.append(doc_id)
+                            new_docs_on_page += 1
                             
                             # Store document type with doc_id
                             if not hasattr(extract_doc_ids_from_signed, 'doc_types'):
@@ -677,12 +682,26 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 except Exception as e:
                     log_console(f"⚠️ Error extracting doc_id in signed tab: {e}")
                     continue
+            
+            # Check if we found any new documents on this page
+            if new_docs_on_page == 0:
+                consecutive_no_new_docs += 1
+                log_console(f"⚠️ No new documents on signed page {page} (consecutive: {consecutive_no_new_docs})")
+                
+                if consecutive_no_new_docs >= max_consecutive_no_new:
+                    log_console(f"🛑 Breaking signed extraction due to {max_consecutive_no_new} consecutive pages with no new documents")
+                    break
+            else:
+                consecutive_no_new_docs = 0
+                log_console(f"✅ Found {new_docs_on_page} new documents on signed page {page}")
                     
             # Check if there's a next page available
             try:
                 next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
                 # Check if the next button is disabled or not clickable
-                if "disabled" in next_button.get_attribute("class") or "disabled" in next_button.get_attribute("aria-disabled"):
+                button_class = next_button.get_attribute("class") or ""
+                aria_disabled = next_button.get_attribute("aria-disabled") or ""
+                if "disabled" in button_class or "disabled" in aria_disabled:
                     log_console("✅ Reached last page (next button disabled)")
                     break
                 next_button.click()
@@ -752,7 +771,9 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                         try:
                             next_button = driver.find_element(By.XPATH, "//li[@class='page-next']/a")
                             # Check if the next button is disabled or not clickable
-                            if "disabled" in next_button.get_attribute("class") or "disabled" in next_button.get_attribute("aria-disabled"):
+                            button_class = next_button.get_attribute("class") or ""
+                            aria_disabled = next_button.get_attribute("aria-disabled") or ""
+                            if "disabled" in button_class or "disabled" in aria_disabled:
                                 log_console("✅ Reached last page on retry (next button disabled)")
                                 break
                             next_button.click()

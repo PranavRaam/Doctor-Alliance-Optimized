@@ -294,23 +294,27 @@ def guess_gender_with_gpt(name):
     if name in GENDER_CACHE:
         return GENDER_CACHE[name]
     
-    openai.api_type = "azure"
-    openai.api_key = AZURE_OPENAI_KEY
-    openai.api_base = AZURE_OPENAI_ENDPOINT
-    openai.api_version = "2024-02-15-preview"
     prompt = (
         f"What is the most likely gender for the first name '{name}'? "
         "Reply with MALE or FEMALE only. If the name could be both, make your best educated guess and still reply MALE or FEMALE. "
         "Do NOT reply with any other word, phrase, or empty string."
     )
     try:
-        response = openai.ChatCompletion.create(
-            engine=AZURE_OPENAI_DEPLOYMENT,
+        from openai import AzureOpenAI
+        
+        client = AzureOpenAI(
+            api_key=AZURE_OPENAI_KEY,
+            azure_endpoint=AZURE_OPENAI_ENDPOINT,
+            api_version="2024-02-15-preview"
+        )
+        
+        response = client.chat.completions.create(
+            model=AZURE_OPENAI_DEPLOYMENT,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1,
             temperature=0.1  # Reduce randomness for more consistent answers
         )
-        ans = response["choices"][0]["message"]["content"].strip().upper()
+        ans = response.choices[0].message.content.strip().upper()
         if ans in ["MALE", "FEMALE"]:
             GENDER_CACHE[name] = ans
             return ans
