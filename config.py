@@ -79,19 +79,14 @@ FIELD_EXTRACTION_CONFIG = {
 # ===========================================
 
 # Date range for processing (MM/DD/YYYY format)
-# Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
     "start_date": "07/01/2025",
-    "end_date": "07/30/2025",
+    "end_date": "07/31/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
-MULTIPLE_COMPANIES = [
-    "traveling_doctors",
-    "restore_family_medical_clinic",
-    "tpch_practice_dr_tradewell",
-    "community_health_centers_oklahoma"
-]
+MULTIPLE_COMPANIES = []
+
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
 PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
@@ -134,6 +129,12 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
+"ssm_health_bone_joint": {
+    "name": "SSM Health Bone & Joint Hospital",
+    "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
+    "helper_id": "ihelperph3232",
+    "description": "SSM Health Bone & Joint Hospital - Bone and joint healthcare services"
+},
 "traveling_doctors": {
     "name": "Traveling at Doctors",
     "pg_company_id": "8cd766e5-6e19-492e-a1a9-6595d81d20ee",
@@ -157,6 +158,24 @@ COMPANIES = {
     "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
     "helper_id": "ihelperph22478",
     "description": "Community Health Centers, Inc Oklahoma - Community health services"
+},
+"grace_at_home": {
+    "name": "Grace At Home",
+    "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
+    "helper_id": "pcookph324",
+    "description": "Grace At Home - Home healthcare services"
+},
+"covenant_care": {
+    "name": "Covenant Care",
+    "pg_company_id": "covenant_care_pg_id",
+    "helper_id": "covenant_care_helper_id",
+    "description": "Covenant Care - Healthcare services"
+},
+"americare": {
+    "name": "Americare",
+    "pg_company_id": "c147e1f1-ccdb-4e22-8526-60a93ad4a678",
+    "helper_id": "ihelperph11203",
+    "description": "Americare - Healthcare services"
 }
 }
 
@@ -165,7 +184,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = ""  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
+ACTIVE_COMPANY = "ssm_health_bone_joint"  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -375,6 +394,16 @@ DOCUMENT_TYPE_FILTERS = {
         "enabled": False,
         "allowed_types": [],
         "description": "Process all document types for Health Quality Primary Care"
+    },
+    "grace_at_home": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Grace At Home"
+    },
+    "americare": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for Americare"
     }
 }
 

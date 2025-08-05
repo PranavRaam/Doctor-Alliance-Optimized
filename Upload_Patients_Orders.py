@@ -93,6 +93,30 @@ def clean_id(val):
     return cleaned
 
 
+def clean_uuid(val):
+    """Clean UUID while preserving hyphens for GUID format."""
+    if pd.isna(val) or val is None:
+        return ""
+    
+    cleaned = str(val).strip()
+    
+    # If it looks like a UUID (contains hyphens), preserve the format
+    if '-' in cleaned:
+        # Remove any non-alphanumeric characters except hyphens
+        cleaned = re.sub(r'[^A-Za-z0-9-]', '', cleaned)
+        # Ensure proper UUID format (8-4-4-4-12)
+        parts = cleaned.split('-')
+        if len(parts) == 5:
+            return f"{parts[0]}-{parts[1]}-{parts[2]}-{parts[3]}-{parts[4]}"
+        elif len(parts) == 1 and len(parts[0]) == 32:
+            # Convert 32-char string to UUID format
+            uuid_str = parts[0]
+            return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
+    
+    # If not a UUID format, use regular clean_id
+    return clean_id(val)
+
+
 def clean_payload_for_json(obj):
     """Recursively replace NaN, inf, -inf with empty string."""
     if isinstance(obj, dict):
@@ -452,7 +476,7 @@ def build_order_payload(row, patients=None):
         "remarks": "",
         "patientId": clean_id(row.get("patientid", "")),
         "companyId": clean_id(row.get("companyId", "")),
-        "pgCompanyId": clean_id(row.get("Pgcompanyid", "")),
+        "pgCompanyId": clean_uuid(row.get("Pgcompanyid", "")),
         "entityType": "ORDER",
         "clinicalJustification": "",
         "billingProvider": "",
