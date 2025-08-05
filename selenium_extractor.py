@@ -562,10 +562,21 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
                 time.sleep(2)
                 table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
+                
+                # Add null check for table_rows
+                if table_rows is None:
+                    log_console("⚠️ table_rows is None, breaking out of loop")
+                    break
+                    
             except TimeoutException:
+                log_console("⚠️ Timeout waiting for table rows")
+                break
+            except Exception as e:
+                log_console(f"⚠️ Error finding table rows: {e}")
                 break
                 
             if not table_rows:
+                log_console("⚠️ No table rows found, breaking out of loop")
                 break
                 
             # Debug: Show table structure for first row
@@ -722,6 +733,11 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                         WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
                         time.sleep(2)
                         table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
+                        
+                        # Add null check for table_rows in retry
+                        if table_rows is None:
+                            log_console("⚠️ table_rows is None in retry, breaking out of loop")
+                            break
                         
                         if table_rows:
                             for row in table_rows:
