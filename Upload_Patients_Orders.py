@@ -289,8 +289,16 @@ def get_episode_data_from_patient(row, patients):
     return row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
 
 
-def build_patient_payload(row):
+def build_patient_payload(row, company_key=None):
     """Enhanced patient payload with cleaned fields."""
+    # Get the authoritative PG ID from config, not from Excel data
+    from config import get_company_config, ACTIVE_COMPANY
+    
+    if company_key is None:
+        company_key = ACTIVE_COMPANY
+    
+    company = get_company_config(company_key)
+    authoritative_pg_id = company['pg_company_id']
     required = ['patientName', 'dob', 'mrn', 'soc', 'cert_period_soe', 'cert_period_eoe', 'Diagnosis 1', 'companyId', 'Pgcompanyid','patient_sex']
     
     remarks = []
@@ -367,7 +375,7 @@ def build_patient_payload(row):
         "remarks": "",
         "daBackofficeID": clean_id(row.get("DABackOfficeID", "")),
         "companyId": clean_id(row.get("companyId", "")),
-        "pgcompanyID": clean_id(row.get("Pgcompanyid", "")),
+        "pgcompanyID": authoritative_pg_id,  # Use authoritative PG ID from config
         "createdBy": "PatientScript",
         "createdOn": now_iso(),
         "updatedBy": "",
@@ -389,8 +397,8 @@ def build_patient_payload(row):
     return payload, remarks
 
 
-def create_patient(row):
-    payload, remarks = build_patient_payload(row)
+def create_patient(row, company_key=None):
+    payload, remarks = build_patient_payload(row, company_key)
     payload = clean_payload_for_json(payload)
     print("\n--- [PATIENT_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
@@ -398,7 +406,12 @@ def create_patient(row):
         resp = requests.post(PATIENT_CREATE_API, headers=HEADERS, json=payload, timeout=20)
         print("--- [PATIENT_CREATE] Response ---")
         print(f"Status: {resp.status_code}\n{resp.text}\n")
-        success = resp.status_code in (200, 201) and (isinstance(resp.json(), dict) and resp.json().get("id"))
+        # Use original working success criteria for patient creation - check for 'id' in response
+        try:
+            resp_json = resp.json()
+        except Exception:
+            resp_json = {}
+        success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and resp_json.get("id"))
         return success, "; ".join(remarks)
     except Exception as e:
         print(f"  [PATIENT_CREATE] Error: {e}")
@@ -424,7 +437,7 @@ def refill_patient_info(df):
                 df.at[i, 'PatientExist'] = True
                 df.at[i, 'patientid'] = p.get("id", "")
                 df.at[i, 'companyId'] = clean_id(agency.get("companyId", ""))
-                df.at[i, 'Pgcompanyid'] = clean_id(agency.get("pgcompanyID", ""))
+                df.at[i, 'Pgcompanyid'] = clean_uuid(agency.get("pgcompanyID", ""))
                 found = True
                 break
         if not found:
@@ -439,8 +452,16 @@ def refill_patient_info(df):
     return df
 
 
-def build_order_payload(row, patients=None):
+def build_order_payload(row, patients=None, company_key=None):
     """Build order payload with enhanced field cleaning."""
+    # Get the authoritative PG ID from config, not from Excel data
+    from config import get_company_config, ACTIVE_COMPANY
+    
+    if company_key is None:
+        company_key = ACTIVE_COMPANY
+    
+    company = get_company_config(company_key)
+    authoritative_pg_id = company['pg_company_id']
     # Get episode data with patient lookup if needed
     if patients:
         soc, soe, eoe = get_episode_data_from_patient(row, patients)
@@ -476,7 +497,7 @@ def build_order_payload(row, patients=None):
         "remarks": "",
         "patientId": clean_id(row.get("patientid", "")),
         "companyId": clean_id(row.get("companyId", "")),
-        "pgCompanyId": clean_uuid(row.get("Pgcompanyid", "")),
+        "pgCompanyId": authoritative_pg_id,  # Use authoritative PG ID from config
         "entityType": "ORDER",
         "clinicalJustification": "",
         "billingProvider": "",
@@ -513,8 +534,8 @@ def get_document_data(doc_id):
         print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")
         return None
 
-def create_order(row, patients=None):
-    payload = build_order_payload(row, patients)
+def create_order(row, patients=None, company_key=None):
+    payload = build_order_payload(row, patients, company_key)
     payload = clean_payload_for_json(payload)
     print("\n--- [ORDER_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
@@ -707,7 +728,7 @@ def main():
             and str(row.get('documentType', '')).upper() in ["485RECERT", "485CERT"]
             and dabackid not in created_patients
         ):
-            success, remarks = create_patient(row)
+            success, remarks = create_patient(row, company_key)
             df.at[idx, 'PATIENTUPLOAD_STATUS'] = "TRUE" if success else "FALSE"
             df.at[idx, 'PATIENTUPLOAD_REMARKS'] = remarks
             if success:
@@ -738,7 +759,7 @@ def main():
             not row.get('PatientExist', False)
             and dabackid not in created_patients
         ):
-            success, remarks = create_patient(row)
+            success, remarks = create_patient(row, company_key)
             df.at[idx, 'PATIENTUPLOAD_STATUS'] = "TRUE" if success else "FALSE"
             df.at[idx, 'PATIENTUPLOAD_REMARKS'] = remarks
             if success:
@@ -770,7 +791,7 @@ def main():
     for idx, row in df.iterrows():
         if row.get('PatientExist', False):
             try:
-                order_success, order_remark = create_order(row, patients_for_orders)
+                order_success, order_remark = create_order(row, patients_for_orders, company_key)
                 df.at[idx, 'ORDERUPLOAD_STATUS'] = "TRUE" if order_success else "FALSE"
                 df.at[idx, 'ORDER_CREATION_REMARK'] = order_remark
                 

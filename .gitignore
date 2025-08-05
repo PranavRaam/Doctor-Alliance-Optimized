@@ -116,6 +116,38 @@ doctoralliance_orders_accuracy_focused.xlsx
 doctoralliance_combined_output.xlsx
 PATIENT_SCRIPT_output.xlsx
 
+# ===========================================
+# NEW SCRIPTS CREATED DURING DEVELOPMENT
+# ===========================================
+
+# Excel Check and Database Export Scripts
+excel_check.py
+database_to_excel_exporter.py
+filter_company_data.py
+
+# Generated Excel Reports
+order_upload_details_*.xlsx
+order_sync_results_*.json
+failed_orders_*.json
+filtering_summary.xlsx
+
+# Filtered Company Data
+filtered_data/
+filtered_data/*.xlsx
+
+# Processing Summary Files
+processing_summary_*.txt
+manual_upload_verification_*.xlsx
+
+# JSON Result Files
+order_sync_results_*.json
+failed_orders_*.json
+
+# Excel Reports with Timestamps
+*_2025*.xlsx
+*_results_*.xlsx
+*_details_*.xlsx
+
 # Document ID NPI Files
 DocumentID_NPI_*.xlsx
 
@@ -198,7 +230,7 @@ tmp_*
 # KEEP THESE FILES (IMPORTANT)
 # ===========================================
 
-# Keep important configuration files
+# Keep important configuration files (MODIFIED FILES - COMMIT THESE)
 !config.py
 !main.py
 !pipeline_main.py
@@ -214,6 +246,9 @@ tmp_*
 !Upload_Patients_Orders.py
 !supremesheet.py
 !SendMail.py
+!excel.py
+!export.py
+!performance_monitor.py
 
 # Keep README and documentation
 !README.md

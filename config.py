@@ -141,17 +141,83 @@ COMPANIES = {
     "helper_id": "ihelperph525",
     "description": "Traveling at Doctors - Mobile healthcare services"
 },
-"restore_family_medical_clinic": {
-    "name": "Restore Family Medical Clinic",
+"the_clinic_central_oklahoma_family_medical_center": {
+    "name": "The Clinic @ Central Oklahoma Family Medical Center",
+    "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
+    "helper_id": "ihelperph_clinic_central",
+    "description": "The Clinic @ Central Oklahoma Family Medical Center - Family medical services"
+},
+"ssm_health_shawnee": {
+    "name": "SSM Health Shawnee",
+    "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
+    "helper_id": "ihelperph_shawnee",
+    "description": "SSM Health Shawnee - Healthcare services"
+},
+"community_physician_group_cpg_clinics": {
+    "name": "Community Physician Group-CPG Clinics",
+    "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
+    "helper_id": "ihelperph_cpg",
+    "description": "Community Physician Group-CPG Clinics - Physician group services"
+},
+"infectious_diseases_consultants_oklahoma_city": {
+    "name": "Infectious Diseases Consultants of Oklahoma City (Idcokc)",
+    "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
+    "helper_id": "ihelperph_idcokc",
+    "description": "Infectious Diseases Consultants of Oklahoma City - Infectious disease services"
+},
+"pushmataha_family_medical_center": {
+    "name": "Pushmataha Family Medical Center",
+    "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
+    "helper_id": "ihelperph_pushmataha",
+    "description": "Pushmataha Family Medical Center - Family medical services"
+},
+"crescent_infectious_diseases": {
+    "name": "Crescent Infectious Diseases",
+    "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
+    "helper_id": "ihelperph_crescent",
+    "description": "Crescent Infectious Diseases - Infectious disease services"
+},
+"norman_regional_ortho_central": {
+    "name": "Norman Regional - Ortho Central",
+    "pg_company_id": "3c002ed5-f9b5-4d07-914a-4856c268c977",
+    "helper_id": "ihelperph_norman_ortho",
+    "description": "Norman Regional - Ortho Central - Orthopedic services"
+},
+"triton_health_pllc_dr_sullivan": {
+    "name": "Triton Health PLLC Dr. Sullivan, Cary",
+    "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
+    "helper_id": "ihelperph_triton",
+    "description": "Triton Health PLLC Dr. Sullivan, Cary - Medical practice services"
+},
+"chickasaw_nation_medical_center": {
+    "name": "Chickasaw Nation Medical Center",
+    "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
+    "helper_id": "ihelperph_chickasaw",
+    "description": "Chickasaw Nation Medical Center - Medical center services"
+},
+"southeast_oklahoma_medical_clinic": {
+    "name": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton",
+    "pg_company_id": "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c",
+    "helper_id": "ihelperph_southeast",
+    "description": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton - Medical clinic services"
+},
+"terry_draper_restore_family_medical_clinic": {
+    "name": "Terry Draper / Restore Family Medical clinic",
     "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
-    "helper_id": "acooperph1020",
-    "description": "Restore Family Medical Clinic - Family medical services"
+    "helper_id": "ihelperph_terry_draper",
+    "description": "Terry Draper / Restore Family Medical clinic - Family medical services"
 },
 "tpch_practice_dr_tradewell": {
     "name": "TPCH Practice/ Dr. Tradewell",
     "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
     "helper_id": "handrewph12",
     "description": "TPCH Practice/ Dr. Tradewell - Medical practice services"
+},
+"restore_family_medical_clinic": {
+    "name": "Restore Family Medical Clinic",
+    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+    "helper_id": "acooperph1020",
+    "description": "Restore Family Medical Clinic - Family medical services"
 },
 "community_health_centers_oklahoma": {
     "name": "Community Health Centers, Inc Oklahoma",
@@ -184,7 +250,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "ssm_health_bone_joint"  # Options: "trucare", "acohealth", "carney_hospital", "health_quality_primary_care"
+ACTIVE_COMPANY = "the_clinic_central_oklahoma_family_medical_center"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
