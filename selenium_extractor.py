@@ -481,17 +481,17 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         # Try direct navigation to signed page first
         try:
             driver.get("https://live.doctoralliance.com/all/Documents/Signed")
-            time.sleep(3)
+            time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
             log_console("✅ Direct navigation to signed page successful")
         except Exception as e:
             log_console(f"⚠️ Direct navigation failed, trying click method: {e}")
             signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
             signed_link.click()
-            time.sleep(3)
+            time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
         
         # Wait for page to load completely
-        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        time.sleep(2)
+        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))  # Reduced from 10 to 5 seconds
+        time.sleep(1)  # Reduced from 2 to 1 second
         
         # Click the "All" button to show all signed documents (not just "Signed & Unfiled")
         log_console("🔘 Clicking 'All' button to show all signed documents...")
@@ -524,11 +524,11 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                     log_console("🔘 'All' button found but not active, clicking...")
                     try:
                         driver.execute_script("arguments[0].click();", all_button)
-                        time.sleep(3)
+                        time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
                         log_console("✅ Clicked 'All' button with JavaScript")
                     except:
                         all_button.click()
-                        time.sleep(3)
+                        time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
                         log_console("✅ Clicked 'All' button with regular click")
                 else:
                     log_console("✅ 'All' button is already active")
@@ -542,15 +542,15 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         # Apply date filters with better error handling
         log_console("📅 Applying date filters...")
         try:
-            start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=10)
+            start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=5)  # Reduced from 10 to 5 seconds
             start_date_input.clear()
-            time.sleep(1)
+            time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
             start_date_input.send_keys(start_date)
             log_console(f"✅ Start date set to: {start_date}")
             
-            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=10)
+            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=5)  # Reduced from 10 to 5 seconds
             end_date_input.clear()
-            time.sleep(1)
+            time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
             if not end_date:
                 end_date = datetime.now().strftime("%m/%d/%Y")
             end_date_input.send_keys(end_date)
@@ -563,7 +563,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         # Click Go button to apply filters with retry logic
         log_console("🔘 Clicking 'Go' button to apply date filters...")
         try:
-            go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=10)
+            go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=5)  # Reduced from 10 to 5 seconds
             
             # Try multiple click methods
             click_successful = False
@@ -583,7 +583,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                     break
                 except Exception as e:
                     log_console(f"⚠️ Click attempt {attempt+1} failed: {e}")
-                    time.sleep(1)
+                    time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
             
             if not click_successful:
                 log_console("❌ Failed to click 'Go' button after 3 attempts")
@@ -595,16 +595,16 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         
         # Wait for page to load with progress indicators
         log_console("⏳ Waiting for filtered results to load...")
-        time.sleep(5)
+        time.sleep(2)  # Reduced from 5 to 2 seconds
         
         # Check for loading indicators and wait accordingly
-        for wait_attempt in range(6):  # Wait up to 30 seconds
+        for wait_attempt in range(4):  # Reduced from 6 to 4 attempts (max 12 seconds instead of 30)
             try:
                 # Check if page is still loading
                 loading_element = driver.find_element(By.XPATH, "//div[contains(@class, 'loading')]")
                 if loading_element.is_displayed():
-                    log_console(f"⏳ Page still loading... (attempt {wait_attempt+1}/6)")
-                    time.sleep(5)
+                    log_console(f"⏳ Page still loading... (attempt {wait_attempt+1}/4)")
+                    time.sleep(3)  # Reduced from 5 to 3 seconds
                     continue
             except:
                 pass
@@ -1111,7 +1111,7 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             driver.current_url  # This will throw an exception if session is dead
             
             driver.get("https://live.doctoralliance.com/all/Inbox")
-            time.sleep(5)  # Wait for page to load completely
+            time.sleep(2)  # Reduced from 5 to 2 seconds
             log_console("✅ Successfully navigated to inbox page")
         except Exception as e:
             log_console(f"❌ Failed to navigate to inbox page (may be session issue): {e}")
@@ -1189,11 +1189,12 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
                 
                 # Progress update (less frequent logging for speed)
                 processed_count += 1
-                if processed_count % 25 == 0:  # Log every 25 documents
+                if processed_count % 10 == 0:  # Reduced from 25 to 10 for better progress visibility
                     log_console(f"📊 Progress: {processed_count}/{len(all_doc_ids)} ({processed_count/len(all_doc_ids)*100:.1f}%)")
                 
-                # Log successful processing
-                log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
+                # Reduced logging frequency for speed - only log every 5th document
+                if processed_count % 5 == 0 or processed_count <= 5:
+                    log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
         
         final_records = filtered_records if filtered_records else records
         
