@@ -86,10 +86,11 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "community_physician_group_cpg_clinics",
-    "pushmataha_family_medical_center", 
-    "crescent_infectious_diseases",
-    "norman_regional_ortho_central"
+    "triton_health_pllc_dr_sullivan",
+    "chickasaw_nation_medical_center",
+    "southeast_oklahoma_medical_clinic",
+    "terry_draper_restore_family_medical_clinic",
+    "tpch_practice_dr_tradewell"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -126,38 +127,44 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "community_physician_group_cpg_clinics", "pushmataha_family_medical_center", "crescent_infectious_diseases", "norman_regional_ortho_central"
+# Available company keys: "triton_health_pllc_dr_sullivan", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic", "terry_draper_restore_family_medical_clinic", "tpch_practice_dr_tradewell"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Only the 4 companies requested for current pipeline processing
+# Updated with the 5 companies requested for current pipeline processing
 COMPANIES = {
-"community_physician_group_cpg_clinics": {
-    "name": "Community Physician Group-CPG Clinics",
-    "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
-    "helper_id": "ihelperph11201",
-    "description": "Community Physician Group-CPG Clinics - Physician group services"
+"triton_health_pllc_dr_sullivan": {
+    "name": "Triton Health PLLC Dr. Sullivan, Cary",
+    "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
+    "helper_id": "handrewph19",
+    "description": "Triton Health PLLC Dr. Sullivan, Cary - Medical practice services"
 },
-"pushmataha_family_medical_center": {
-    "name": "Pushmataha Family Medical Center",
-    "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
-    "helper_id": "ihelperph9221",
-    "description": "Pushmataha Family Medical Center - Family medical services"
+"chickasaw_nation_medical_center": {
+    "name": "Chickasaw Nation Medical Center",
+    "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
+    "helper_id": "michaelph1",
+    "description": "Chickasaw Nation Medical Center - Medical center services"
 },
-"crescent_infectious_diseases": {
-    "name": "Crescent Infectious Diseases",
-    "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
-    "helper_id": "handrewph7202",
-    "description": "Crescent Infectious Diseases - Infectious disease services"
+"southeast_oklahoma_medical_clinic": {
+    "name": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton",
+    "pg_company_id": "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c",
+    "helper_id": "handrewph14",
+    "description": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton - Medical clinic services"
 },
-"norman_regional_ortho_central": {
-    "name": "Norman Regional - Ortho Central",
-    "pg_company_id": "3c002ed5-f9b5-4d07-914a-4856c268c977",
-    "helper_id": "ihelperph22459",
-    "description": "Norman Regional - Ortho Central - Orthopedic services"
+"terry_draper_restore_family_medical_clinic": {
+    "name": "Terry Draper / Restore Family Medical clinic",
+    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+    "helper_id": "acooperph1020",
+    "description": "Terry Draper / Restore Family Medical clinic - Family medical services"
+},
+"tpch_practice_dr_tradewell": {
+    "name": "TPCH Practice/ Dr. Tradewell",
+    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
+    "helper_id": "handrewph12",
+    "description": "TPCH Practice/ Dr. Tradewell - Medical practice services"
 }
 }
 
@@ -166,7 +173,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = ""  # Change this for each company
+ACTIVE_COMPANY = "triton_health_pllc_dr_sullivan"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -299,27 +306,32 @@ def show_active_company():
 # DOCUMENT TYPE FILTERING CONFIGURATION
 # ===========================================
 
-# Document type filtering for the 4 companies in current pipeline
+# Document type filtering for the 5 companies in current pipeline
 DOCUMENT_TYPE_FILTERS = {
-    "community_physician_group_cpg_clinics": {
+    "triton_health_pllc_dr_sullivan": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Community Physician Group-CPG Clinics"
+        "description": "Process all document types for Triton Health PLLC Dr. Sullivan, Cary"
     },
-    "pushmataha_family_medical_center": {
+    "chickasaw_nation_medical_center": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Pushmataha Family Medical Center"
+        "description": "Process all document types for Chickasaw Nation Medical Center"
     },
-    "crescent_infectious_diseases": {
+    "southeast_oklahoma_medical_clinic": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Crescent Infectious Diseases"
+        "description": "Process all document types for Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
     },
-    "norman_regional_ortho_central": {
+    "terry_draper_restore_family_medical_clinic": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Norman Regional - Ortho Central"
+        "description": "Process all document types for Terry Draper / Restore Family Medical clinic"
+    },
+    "tpch_practice_dr_tradewell": {
+        "enabled": False,
+        "allowed_types": [],
+        "description": "Process all document types for TPCH Practice/ Dr. Tradewell"
     }
 }
 
