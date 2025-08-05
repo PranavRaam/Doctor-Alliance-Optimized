@@ -89,8 +89,30 @@ def clean_company_name(name):
 company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
-# Read the Excel file
-input_file = "patient_and_order_upload_files\supreme_excel_texas_infectious_disease_institute_with_patient_and_order_upload.xlsx"
+# Read the Excel file - Updated for current pipeline companies
+import sys
+import os
+
+# Get the most recent supreme excel file from current directory
+supreme_files = []
+for file in os.listdir('.'):
+    if file.startswith('supreme_excel_') and file.endswith('_with_patient_and_order_upload.xlsx'):
+        supreme_files.append(file)
+
+if not supreme_files:
+    print("❌ No supreme excel files found with patient and order upload. Looking for any supreme excel files...")
+    for file in os.listdir('.'):
+        if file.startswith('supreme_excel_') and file.endswith('.xlsx'):
+            supreme_files.append(file)
+
+if supreme_files:
+    # Use the most recent file
+    input_file = max(supreme_files, key=os.path.getctime)
+    print(f"📄 Using most recent file: {input_file}")
+else:
+    print("❌ No supreme excel files found. Please ensure a supreme excel file exists.")
+    sys.exit(1)
+
 df = pd.read_excel(input_file)
 
 # Process all records and identify data quality issues (not patient creation status)
