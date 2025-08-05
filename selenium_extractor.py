@@ -1128,8 +1128,8 @@ if __name__ == "__main__":
         helper_id = ""
     
     da_url = "https://backoffice.doctoralliance.com"
-    da_login = "sannidhay"
-    da_password = "DA@2025"
+    da_login = "rpabot"
+    da_password = "Dallas@1234"
     
     run_id_and_npi_extraction(
         da_url=da_url,
