@@ -477,19 +477,35 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     
     try:
         log_console("Navigating to Signed tab...")
-        signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
-        signed_link.click()
+        
+        # Try direct navigation to signed page first
+        try:
+            driver.get("https://live.doctoralliance.com/all/Documents/Signed")
+            time.sleep(3)
+            log_console("✅ Direct navigation to signed page successful")
+        except Exception as e:
+            log_console(f"⚠️ Direct navigation failed, trying click method: {e}")
+            signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
+            signed_link.click()
+            time.sleep(3)
+        
+        # Wait for page to load completely
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         time.sleep(2)
         
         # Click the "All" button to show all signed documents (not just "Signed & Unfiled")
         log_console("🔘 Clicking 'All' button to show all signed documents...")
         try:
-            # Try multiple selectors for the "All" button
+            # Extended list of selectors for the "All" button
             all_button_selectors = [
                 "//button[@data-doc-status='All']",
                 "//button[contains(@class, 'btn-doc-status-filter') and contains(text(), 'All')]",
                 "//button[contains(@class, 'btn-doc-status-filter') and @data-doc-status='All']",
-                "//button[text()='All' and contains(@class, 'btn-doc-status-filter')]"
+                "//button[text()='All' and contains(@class, 'btn-doc-status-filter')]",
+                "//button[normalize-space(text())='All']",
+                "//input[@value='All']/../button",
+                "//a[contains(text(), 'All')]",
+                "//span[contains(text(), 'All')]/.."
             ]
             
             all_button = None
@@ -504,11 +520,16 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             if all_button:
                 # Check if it's already active
                 button_class = all_button.get_attribute("class")
-                if "active" not in button_class:
+                if "active" not in button_class.lower():
                     log_console("🔘 'All' button found but not active, clicking...")
-                    driver.execute_script("arguments[0].click();", all_button)
-                    time.sleep(2)
-                    log_console("✅ Clicked 'All' button")
+                    try:
+                        driver.execute_script("arguments[0].click();", all_button)
+                        time.sleep(3)
+                        log_console("✅ Clicked 'All' button with JavaScript")
+                    except:
+                        all_button.click()
+                        time.sleep(3)
+                        log_console("✅ Clicked 'All' button with regular click")
                 else:
                     log_console("✅ 'All' button is already active")
             else:
@@ -518,40 +539,99 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             log_console(f"⚠️ Error with 'All' button: {e}")
             # Continue anyway, might already be on "All" view
         
-        # Apply date filters
+        # Apply date filters with better error handling
         log_console("📅 Applying date filters...")
-        start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker")
-        start_date_input.clear()
-        start_date_input.send_keys(start_date)
-        
-        end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker")
-        end_date_input.clear()
-        if not end_date:
-            end_date = datetime.now().strftime("%m/%d/%Y")
-        end_date_input.send_keys(end_date)
-        
-        # Click Go button to apply filters
-        go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid")
-        log_console("🔘 Clicking 'Go' button to apply date filters...")
-        
         try:
-            driver.execute_script("arguments[0].click();", go_button)
-            log_console("✅ 'Go' button clicked successfully")
+            start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=10)
+            start_date_input.clear()
+            time.sleep(1)
+            start_date_input.send_keys(start_date)
+            log_console(f"✅ Start date set to: {start_date}")
+            
+            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=10)
+            end_date_input.clear()
+            time.sleep(1)
+            if not end_date:
+                end_date = datetime.now().strftime("%m/%d/%Y")
+            end_date_input.send_keys(end_date)
+            log_console(f"✅ End date set to: {end_date}")
+            
         except Exception as e:
-            log_console(f"⚠️ JavaScript click failed, trying regular click: {e}")
-            go_button.click()
-            log_console("✅ 'Go' button clicked with regular click")
+            log_console(f"❌ Error setting date filters: {e}")
+            return [], {}
         
-        time.sleep(8)  # Increased wait time for page to load
-        
-        # Wait a bit more and check for "No matching records found"
-        time.sleep(3)
+        # Click Go button to apply filters with retry logic
+        log_console("🔘 Clicking 'Go' button to apply date filters...")
         try:
-            driver.find_element(By.XPATH, "//td[@colspan='11' and contains(text(), 'No matching records found')]")
-            log_console("No Signed Orders found")
-            return [], {}  # Return empty tuple instead of empty list
+            go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=10)
+            
+            # Try multiple click methods
+            click_successful = False
+            for attempt in range(3):
+                try:
+                    if attempt == 0:
+                        driver.execute_script("arguments[0].click();", go_button)
+                        log_console("✅ 'Go' button clicked with JavaScript")
+                    elif attempt == 1:
+                        go_button.click()
+                        log_console("✅ 'Go' button clicked with regular click")
+                    else:
+                        driver.execute_script("arguments[0].focus(); arguments[0].click();", go_button)
+                        log_console("✅ 'Go' button clicked with focus+click")
+                    
+                    click_successful = True
+                    break
+                except Exception as e:
+                    log_console(f"⚠️ Click attempt {attempt+1} failed: {e}")
+                    time.sleep(1)
+            
+            if not click_successful:
+                log_console("❌ Failed to click 'Go' button after 3 attempts")
+                return [], {}
+                
+        except Exception as e:
+            log_console(f"❌ Error finding/clicking 'Go' button: {e}")
+            return [], {}
+        
+        # Wait for page to load with progress indicators
+        log_console("⏳ Waiting for filtered results to load...")
+        time.sleep(5)
+        
+        # Check for loading indicators and wait accordingly
+        for wait_attempt in range(6):  # Wait up to 30 seconds
+            try:
+                # Check if page is still loading
+                loading_element = driver.find_element(By.XPATH, "//div[contains(@class, 'loading')]")
+                if loading_element.is_displayed():
+                    log_console(f"⏳ Page still loading... (attempt {wait_attempt+1}/6)")
+                    time.sleep(5)
+                    continue
+            except:
+                pass
+            break
+        
+        # Check for "No matching records found" with better selector
+        try:
+            no_records_selectors = [
+                "//td[@colspan='11' and contains(text(), 'No matching records found')]",
+                "//td[contains(text(), 'No matching records found')]",
+                "//div[contains(text(), 'No matching records found')]",
+                "//span[contains(text(), 'No matching records')]"
+            ]
+            
+            for selector in no_records_selectors:
+                try:
+                    no_records_element = driver.find_element(By.XPATH, selector)
+                    if no_records_element.is_displayed():
+                        log_console("❌ No Signed Orders found in the specified date range")
+                        return [], {}
+                except:
+                    continue
+                    
         except Exception:
             pass
+        
+        log_console("✅ Date filters applied successfully, proceeding with extraction...")
             
         page = 1
         max_pages = 100  # Safety limit to prevent infinite loops
@@ -1000,12 +1080,16 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--max_old_space_size=4096")
     
     driver = webdriver.Chrome(options=options)
-    driver.maximize_window()
-    driver.set_page_load_timeout(15)  # Reduced for faster failure detection
-    driver.implicitly_wait(2)  # Reduced for faster processing
-    driver.set_script_timeout(10)  # Set script timeout
-
+    
     try:
+        driver.maximize_window()
+        driver.set_page_load_timeout(30)  # Increased for stability
+        driver.implicitly_wait(5)  # Increased for stability
+        driver.set_script_timeout(30)  # Increased for stability
+        
+        # Add stealth mode
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
         login_to_da(da_url, da_login, da_password, driver)
         driver.get("https://backoffice.doctoralliance.com/Search")
         wait_and_find_element(driver, By.ID, "Query").send_keys(helper_id)
@@ -1023,12 +1107,28 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         # Inbox
         log_console("🔍 Inbox extraction")
         try:
+            # Check if driver is still alive
+            driver.current_url  # This will throw an exception if session is dead
+            
             driver.get("https://live.doctoralliance.com/all/Inbox")
             time.sleep(5)  # Wait for page to load completely
             log_console("✅ Successfully navigated to inbox page")
         except Exception as e:
-            log_console(f"❌ Failed to navigate to inbox page: {e}")
-            raise e
+            log_console(f"❌ Failed to navigate to inbox page (may be session issue): {e}")
+            # Try to recover by creating new driver
+            try:
+                log_console("🔄 Attempting to create new driver session...")
+                driver.quit()
+                driver = webdriver.Chrome(options=options)
+                driver.maximize_window()
+                driver.set_page_load_timeout(30)
+                driver.implicitly_wait(5)
+                driver.set_script_timeout(30)
+                login_to_da(da_url, da_login, da_password, driver)
+                log_console("✅ Successfully recovered driver session")
+            except Exception as recovery_error:
+                log_console(f"❌ Failed to recover driver session: {recovery_error}")
+                raise e
             
         # Set company key for extraction functions
         extract_doc_ids_from_inbox.company_key = company_key
@@ -1096,6 +1196,16 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
                 log_console(f"✅ {doc_id}  NPI: {npi}  Type: {document_type} (PROCESSED)")
         
         final_records = filtered_records if filtered_records else records
+        
+        # Create failsafe DataFrame structure when no documents are found
+        if not final_records:
+            log_console("⚠️ No documents found, creating empty Excel with proper structure...")
+            final_records = [{
+                "Document ID": "",
+                "NPI": "",
+                "Document Type": ""
+            }]
+        
         combined_df = pd.DataFrame(final_records)
         combined_df.to_excel(output_path, index=False)
         log_console(f"✅ Combined Excel created at: {output_path}\nRows: {len(combined_df)}")
