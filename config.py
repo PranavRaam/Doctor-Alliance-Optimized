@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "community_health_centers_inc_oklahoma"  # Change this for each company
+ACTIVE_COMPANY = ""  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():

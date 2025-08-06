@@ -614,7 +614,8 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 continue
         
         if not table_loaded:
-            time.sleep(2)  # Final fallback wait if table not detected
+            time.sleep(3)  # Increased fallback wait for better page loading
+            log_console("⏳ Additional wait for page to fully load...")
         
         # Check for "No matching records found" with better selector
         try:
@@ -625,19 +626,44 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 "//span[contains(text(), 'No matching records')]"
             ]
             
+            no_records_found = False
             for selector in no_records_selectors:
                 try:
                     no_records_element = driver.find_element(By.XPATH, selector)
                     if no_records_element.is_displayed():
+                        no_records_found = True
                         log_console("❌ No Signed Orders found in the specified date range")
-                        return [], {}
+                        break
                 except:
                     continue
+            
+            # Only return empty if we actually found the "no records" message
+            if no_records_found:
+                return [], {}
                     
         except Exception:
             pass
         
         log_console("✅ Date filters applied successfully, proceeding with extraction...")
+        
+        # Debug: Check what's actually on the page
+        try:
+            page_source = driver.page_source
+            if "No matching records found" in page_source:
+                log_console("🔍 Debug: 'No matching records found' text detected in page source")
+            else:
+                log_console("🔍 Debug: 'No matching records found' text NOT found in page source")
+            
+            # Look for any table elements
+            tables = driver.find_elements(By.TAG_NAME, "table")
+            log_console(f"🔍 Debug: Found {len(tables)} table elements on page")
+            
+            # Look for any rows
+            all_rows = driver.find_elements(By.TAG_NAME, "tr")
+            log_console(f"🔍 Debug: Found {len(all_rows)} total row elements on page")
+            
+        except Exception as e:
+            log_console(f"⚠️ Debug: Error checking page content: {e}")
             
         page = 1
         max_pages = 100  # Safety limit to prevent infinite loops
@@ -649,13 +675,29 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             new_docs_on_page = 0  # Count new documents found on this page
             
             try:
-                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
-                time.sleep(2)
-                table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
+                # Try multiple selectors for the signed documents table
+                table_selectors = [
+                    "#signed-docs-grid tbody tr",
+                    "table tbody tr",
+                    ".table tbody tr",
+                    "tbody tr"
+                ]
+                
+                table_rows = None
+                for selector in table_selectors:
+                    try:
+                        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                        time.sleep(1)
+                        table_rows = driver.find_elements(By.CSS_SELECTOR, selector)
+                        if table_rows and len(table_rows) > 0:
+                            log_console(f"✅ Found table with selector: {selector} ({len(table_rows)} rows)")
+                            break
+                    except:
+                        continue
                 
                 # Add null check for table_rows
-                if table_rows is None:
-                    log_console("⚠️ table_rows is None, breaking out of loop")
+                if table_rows is None or len(table_rows) == 0:
+                    log_console("⚠️ No table rows found with any selector, breaking out of loop")
                     break
                     
             except TimeoutException:
@@ -663,10 +705,6 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 break
             except Exception as e:
                 log_console(f"⚠️ Error finding table rows: {e}")
-                break
-                
-            if not table_rows:
-                log_console("⚠️ No table rows found, breaking out of loop")
                 break
                 
             # Debug: Show table structure for first row
@@ -684,7 +722,29 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 
             for row in table_rows:
                 try:
-                    doc_id = row.find_element(By.CSS_SELECTOR, "td:nth-child(10) span.text-muted").text.strip()
+                    # Try multiple selectors for document ID
+                    doc_id_selectors = [
+                        "td:nth-child(10) span.text-muted",
+                        "td:nth-child(9) span.text-muted", 
+                        "td:nth-child(8) span.text-muted",
+                        "td:nth-child(10)",
+                        "td:nth-child(9)",
+                        "td:nth-child(8)",
+                        "td:last-child span.text-muted",
+                        "td:last-child"
+                    ]
+                    
+                    doc_id = None
+                    for selector in doc_id_selectors:
+                        try:
+                            element = row.find_element(By.CSS_SELECTOR, selector)
+                            doc_id = element.text.strip()
+                            if doc_id and doc_id.isdigit() and len(doc_id) >= 6:  # Document IDs are typically 7+ digits
+                                log_console(f"🔍 Found doc ID with selector {selector}: {doc_id}")
+                                break
+                        except:
+                            continue
+                    
                     if doc_id and doc_id not in seen_ids:
                         # Try to extract document type from signed table
                         doc_type = ""
