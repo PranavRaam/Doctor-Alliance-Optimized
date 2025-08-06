@@ -86,9 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "community_health_centers_inc_oklahoma",
-    "primary_care_of_ada",
-    "doctors_2_u"
+    "applemd",
+    "anand_balasubrimunium",
+    "woundcentrics_llc"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -134,23 +134,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # Company configurations with their pg company IDs and helper IDs
 # Updated with the 3 new companies for current pipeline processing
 COMPANIES = {
-"community_health_centers_inc_oklahoma": {
-    "name": "Community Health Centers,Inc Oklahoma",
-    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
-    "helper_id": "ihelperph22478",
-    "description": "Community Health Centers,Inc Oklahoma - Community health services"
+"applemd": {
+    "name": "APPLEMD",
+    "pg_company_id": "83de8c79-1a28-4d0b-90bc-5deaf95949e5",
+    "helper_id": "ihelperph1024",
+    "description": "APPLEMD - Medical services"
 },
-"primary_care_of_ada": {
-    "name": "Primary care of Ada",
-    "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
-    "helper_id": "handrewph44",
-    "description": "Primary care of Ada - Primary care services"
+"anand_balasubrimunium": {
+    "name": "ANAND BALASUBRIMUNIUM",
+    "pg_company_id": "1726e467-f4b0-4c11-b2b7-a39eb1328d91",
+    "helper_id": "jmonroyph",
+    "description": "ANAND BALASUBRIMUNIUM - Medical services"
 },
-"doctors_2_u": {
-    "name": "Doctors 2 U",
-    "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
-    "helper_id": "dallianceph9213",
-    "description": "Doctors 2 U - Medical services"
+"woundcentrics_llc": {
+    "name": "WoundCentrics, LLC",
+    "pg_company_id": "0367ce80-57a9-45e7-8afe-18f665a6a640",
+    "helper_id": "tthriftph1024",
+    "description": "WoundCentrics, LLC - Wound care services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "community_health_centers_inc_oklahoma"  # Change this for each company
+ACTIVE_COMPANY = "applemd"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
