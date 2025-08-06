@@ -80,16 +80,12 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "07/01/2025",
-    "end_date": "07/31/2025",
+    "start_date": "06/01/2025",
+    "end_date": "06/30/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
-MULTIPLE_COMPANIES = [
-    "visiting_practitioners_and_palliative_care_llc",
-    "responsive_infectious_diseases_solutions",
-    "doctor_at_your_service"
-]
+MULTIPLE_COMPANIES = []
 
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
@@ -132,25 +128,13 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with the 3 new companies for current pipeline processing
+# Updated with Hawthorn for June processing
 COMPANIES = {
-"visiting_practitioners_and_palliative_care_llc": {
-    "name": "Visiting Practitioners And Palliative Care LLC",
-    "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
-    "helper_id": "ihelperph1242",
-    "description": "Visiting Practitioners And Palliative Care LLC - Palliative care services"
-},
-"responsive_infectious_diseases_solutions": {
-    "name": "Responsive Infectious Diseases Solutions",
-    "pg_company_id": "ee74f247-b46e-480c-a4e4-9ae6b8a5dc35",
-    "helper_id": "ihelperph10201",
-    "description": "Responsive Infectious Diseases Solutions - Infectious disease services"
-},
-"doctor_at_your_service": {
-    "name": "Doctor at your service",
-    "pg_company_id": "e749dda4-60ab-48d3-afc6-728a15d74182",
-    "helper_id": "ihelperph421",
-    "description": "Doctor at your service - Medical services"
+"hawthorn": {
+    "name": "Hawthorn",
+    "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
+    "helper_id": "ihelperph7243",
+    "description": "Hawthorn - Medical services"
 }
 }
 
@@ -159,7 +143,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "visiting_practitioners_and_palliative_care_llc"  # Change this for each company
+ACTIVE_COMPANY = "hawthorn"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
