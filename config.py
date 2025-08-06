@@ -80,15 +80,15 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "07/01/2025",
-    "end_date": "07/31/2025",
+    "start_date": "08/01/2025",
+    "end_date": "08/31/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "community_health_centers_inc_oklahoma",
-    "kates_lindsay_primary_care_of_ada",
-    "doctors_2_u"
+    "the_clinic_central_oklahoma_family_medical_center",
+    "ssm_health_shawnee",
+    "community_physician_group_cpg_clinics"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -125,7 +125,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "community_health_centers_inc_oklahoma", "kates_lindsay_primary_care_of_ada", "doctors_2_u"
+# Available company keys: "the_clinic_central_oklahoma_family_medical_center", "ssm_health_shawnee", "community_physician_group_cpg_clinics"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -134,23 +134,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # Company configurations with their pg company IDs and helper IDs
 # Updated with the 3 companies requested for current pipeline processing
 COMPANIES = {
-"community_health_centers_inc_oklahoma": {
-    "name": "Community Health Centers,Inc Oklahoma",
-    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
-    "helper_id": "ihelperph22478",
-    "description": "Community Health Centers,Inc Oklahoma - Community health services"
+"the_clinic_central_oklahoma_family_medical_center": {
+    "name": "The Clinic @ Central Oklahoma Family Medical Center",
+    "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
+    "helper_id": "dallianceph9212",
+    "description": "The Clinic @ Central Oklahoma Family Medical Center - Family medical services"
 },
-"kates_lindsay_primary_care_of_ada": {
-    "name": "KATES, LINDSAY / Primary care of Ada",
-    "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
-    "helper_id": "handrewph44",
-    "description": "KATES, LINDSAY / Primary care of Ada - Primary care services"
+"ssm_health_shawnee": {
+    "name": "SSM Health Shawnee",
+    "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
+    "helper_id": "ihelperph323",
+    "description": "SSM Health Shawnee - Health services"
 },
-"doctors_2_u": {
-    "name": "Doctors 2 U",
-    "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
-    "helper_id": "dallianceph9213",
-    "description": "Doctors 2 U - Medical services"
+"community_physician_group_cpg_clinics": {
+    "name": "Community Physician Group-CPG Clinics",
+    "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
+    "helper_id": "ihelperph11201",
+    "description": "Community Physician Group-CPG Clinics - Medical clinic services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = ""  # Change this for each company
+ACTIVE_COMPANY = "the_clinic_central_oklahoma_family_medical_center"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -294,20 +294,20 @@ def show_active_company():
 
 # Document type filtering for the 3 companies in current pipeline
 DOCUMENT_TYPE_FILTERS = {
-    "community_health_centers_inc_oklahoma": {
+    "the_clinic_central_oklahoma_family_medical_center": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Community Health Centers,Inc Oklahoma"
+        "description": "Process all document types for The Clinic @ Central Oklahoma Family Medical Center"
     },
-    "kates_lindsay_primary_care_of_ada": {
+    "ssm_health_shawnee": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for KATES, LINDSAY / Primary care of Ada"
+        "description": "Process all document types for SSM Health Shawnee"
     },
-    "doctors_2_u": {
+    "community_physician_group_cpg_clinics": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Doctors 2 U"
+        "description": "Process all document types for Community Physician Group-CPG Clinics"
     }
 }
 
