@@ -76,7 +76,7 @@ def clean_mrn_for_upload(val):
 
 
 def clean_id(val):
-    """Enhanced clean_id with alphanumeric validation."""
+    """Basic ID cleaning for non-UUID fields."""
     if pd.isna(val) or val is None:
         return ""
     
@@ -374,7 +374,7 @@ def build_patient_payload(row, company_key=None):
         "patientCaretakerContactNumber": "",
         "remarks": "",
         "daBackofficeID": clean_id(row.get("DABackOfficeID", "")),
-        "companyId": clean_id(row.get("companyId", "")),
+        "companyId": clean_uuid(row.get("companyId", "")),
         "pgcompanyID": authoritative_pg_id,  # Use authoritative PG ID from config
         "createdBy": "PatientScript",
         "createdOn": now_iso(),
@@ -436,7 +436,7 @@ def refill_patient_info(df):
                (agency.get("daBackofficeID", "") and dabackid and clean_id(agency["daBackofficeID"]) == dabackid):
                 df.at[i, 'PatientExist'] = True
                 df.at[i, 'patientid'] = p.get("id", "")
-                df.at[i, 'companyId'] = clean_id(agency.get("companyId", ""))
+                df.at[i, 'companyId'] = clean_uuid(agency.get("companyId", ""))
                 df.at[i, 'Pgcompanyid'] = clean_uuid(agency.get("pgcompanyID", ""))
                 found = True
                 break
@@ -495,8 +495,8 @@ def build_order_payload(row, patients=None, company_key=None):
         "account": "",
         "location": "",
         "remarks": "",
-        "patientId": clean_id(row.get("patientid", "")),
-        "companyId": clean_id(row.get("companyId", "")),
+        "patientId": clean_uuid(row.get("patientid", "")),
+        "companyId": clean_uuid(row.get("companyId", "")),
         "pgCompanyId": authoritative_pg_id,  # Use authoritative PG ID from config
         "entityType": "ORDER",
         "clinicalJustification": "",
