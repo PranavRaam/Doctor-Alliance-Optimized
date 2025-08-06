@@ -86,9 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "the_clinic_central_oklahoma_family_medical_center",
-    "ssm_health_shawnee", 
-    "community_physician_group_cpg_clinics"
+    "infectious_diseases_consultants_oklahoma_city",
+    "pushmataha_family_medical_center",
+    "crescent_infectious_diseases"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -134,23 +134,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # Company configurations with their pg company IDs and helper IDs
 # Updated with the 5 companies requested for current pipeline processing
 COMPANIES = {
-"the_clinic_central_oklahoma_family_medical_center": {
-    "name": "The Clinic @ Central Oklahoma Family Medical Center",
-    "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
-    "helper_id": "dallianceph9212",
-    "description": "The Clinic @ Central Oklahoma Family Medical Center - Family medical center services"
+"infectious_diseases_consultants_oklahoma_city": {
+    "name": "Infectious Diseases Consultants of Oklahoma City (Idcokc)",
+    "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
+    "helper_id": "ihelperph9223",
+    "description": "Infectious Diseases Consultants of Oklahoma City - Infectious disease services"
 },
-"ssm_health_shawnee": {
-    "name": "SSM Health Shawnee",
-    "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
-    "helper_id": "ihelperph323",
-    "description": "SSM Health Shawnee - Health services"
+"pushmataha_family_medical_center": {
+    "name": "Pushmataha Family Medical Center",
+    "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
+    "helper_id": "ihelperph9221",
+    "description": "Pushmataha Family Medical Center - Family medical center services"
 },
-"community_physician_group_cpg_clinics": {
-    "name": "Community Physician Group-CPG Clinics",
-    "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
-    "helper_id": "ihelperph11201",
-    "description": "Community Physician Group-CPG Clinics - Medical practice services"
+"crescent_infectious_diseases": {
+    "name": "Crescent Infectious Diseases",
+    "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
+    "helper_id": "handrewph7202",
+    "description": "Crescent Infectious Diseases - Infectious disease services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "the_clinic_central_oklahoma_family_medical_center"  # Change this for each company
+ACTIVE_COMPANY = "infectious_diseases_consultants_oklahoma_city"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -294,20 +294,20 @@ def show_active_company():
 
 # Document type filtering for the 3 companies in current pipeline
 DOCUMENT_TYPE_FILTERS = {
-    "the_clinic_central_oklahoma_family_medical_center": {
+    "infectious_diseases_consultants_oklahoma_city": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for The Clinic @ Central Oklahoma Family Medical Center"
+        "description": "Process all document types for Infectious Diseases Consultants of Oklahoma City"
     },
-    "ssm_health_shawnee": {
+    "pushmataha_family_medical_center": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for SSM Health Shawnee"
+        "description": "Process all document types for Pushmataha Family Medical Center"
     },
-    "community_physician_group_cpg_clinics": {
+    "crescent_infectious_diseases": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Community Physician Group-CPG Clinics"
+        "description": "Process all document types for Crescent Infectious Diseases"
     }
 }
 
