@@ -80,15 +80,15 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "08/01/2025",
-    "end_date": "08/06/2025",
+    "start_date": "07/01/2025",
+    "end_date": "07/31/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "applemd",
-    "anand_balasubrimunium",
-    "woundcentrics_llc"
+    "visiting_practitioners_and_palliative_care_llc",
+    "responsive_infectious_diseases_solutions",
+    "doctor_at_your_service"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -134,23 +134,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # Company configurations with their pg company IDs and helper IDs
 # Updated with the 3 new companies for current pipeline processing
 COMPANIES = {
-"applemd": {
-    "name": "APPLEMD",
-    "pg_company_id": "83de8c79-1a28-4d0b-90bc-5deaf95949e5",
-    "helper_id": "ihelperph1024",
-    "description": "APPLEMD - Medical services"
+"visiting_practitioners_and_palliative_care_llc": {
+    "name": "Visiting Practitioners And Palliative Care LLC",
+    "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
+    "helper_id": "ihelperph1242",
+    "description": "Visiting Practitioners And Palliative Care LLC - Palliative care services"
 },
-"anand_balasubrimunium": {
-    "name": "ANAND BALASUBRIMUNIUM",
-    "pg_company_id": "1726e467-f4b0-4c11-b2b7-a39eb1328d91",
-    "helper_id": "jmonroyph",
-    "description": "ANAND BALASUBRIMUNIUM - Medical services"
+"responsive_infectious_diseases_solutions": {
+    "name": "Responsive Infectious Diseases Solutions",
+    "pg_company_id": "ee74f247-b46e-480c-a4e4-9ae6b8a5dc35",
+    "helper_id": "ihelperph10201",
+    "description": "Responsive Infectious Diseases Solutions - Infectious disease services"
 },
-"woundcentrics_llc": {
-    "name": "WoundCentrics, LLC",
-    "pg_company_id": "0367ce80-57a9-45e7-8afe-18f665a6a640",
-    "helper_id": "tthriftph1024",
-    "description": "WoundCentrics, LLC - Wound care services"
+"doctor_at_your_service": {
+    "name": "Doctor at your service",
+    "pg_company_id": "e749dda4-60ab-48d3-afc6-728a15d74182",
+    "helper_id": "ihelperph421",
+    "description": "Doctor at your service - Medical services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "applemd"  # Change this for each company
+ACTIVE_COMPANY = "visiting_practitioners_and_palliative_care_llc"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
