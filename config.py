@@ -128,13 +128,19 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with Hawthorn for June processing
+# Updated with SSM Health Bone & Joint Hospital
 COMPANIES = {
 "hawthorn": {
     "name": "Hawthorn",
     "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
     "helper_id": "ihelperph7243",
     "description": "Hawthorn - Medical services"
+},
+"ssm_health_bone_joint": {
+    "name": "SSM Health Bone & Joint Hospital",
+    "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
+    "helper_id": "ihelperph3232",
+    "description": "SSM Health Bone & Joint Hospital - Medical services"
 }
 }
 
@@ -143,7 +149,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "hawthorn"  # Change this for each company
+ACTIVE_COMPANY = "ssm_health_bone_joint"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
