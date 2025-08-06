@@ -86,9 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "norman_regional_ortho_central",
-    "triton_health_pllc_dr_sullivan_cary",
-    "chickasaw_nation_medical_center"
+    "southeast_oklahoma_medical_clinic",
+    "terry_draper_restore_family_medical_clinic",
+    "tpch_practice_dr_tradewell"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -134,23 +134,23 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # Company configurations with their pg company IDs and helper IDs
 # Updated with the 3 new companies for current pipeline processing
 COMPANIES = {
-"norman_regional_ortho_central": {
-    "name": "Norman Regional - Ortho Central",
-    "pg_company_id": "3c002ed5-f9b5-4d07-914a-4856c268c977",
-    "helper_id": "ihelperph22459",
-    "description": "Norman Regional - Ortho Central - Orthopedic services"
+"southeast_oklahoma_medical_clinic": {
+    "name": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton",
+    "pg_company_id": "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c",
+    "helper_id": "handrewph14",
+    "description": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton - Medical clinic services"
 },
-"triton_health_pllc_dr_sullivan_cary": {
-    "name": "Triton Health PLLC Dr. Sullivan, Cary",
-    "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
-    "helper_id": "handrewph19",
-    "description": "Triton Health PLLC Dr. Sullivan, Cary - Medical services"
+"terry_draper_restore_family_medical_clinic": {
+    "name": "Terry Draper / Restore Family Medical clinic",
+    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+    "helper_id": "acooperph1020",
+    "description": "Terry Draper / Restore Family Medical clinic - Family medical services"
 },
-"chickasaw_nation_medical_center": {
-    "name": "Chickasaw Nation Medical Center",
-    "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
-    "helper_id": "michaelph1",
-    "description": "Chickasaw Nation Medical Center - Medical center services"
+"tpch_practice_dr_tradewell": {
+    "name": "TPCH Practice/ Dr. Tradewell",
+    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
+    "helper_id": "handrewph12",
+    "description": "TPCH Practice/ Dr. Tradewell - Medical practice services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "norman_regional_ortho_central"  # Change this for each company
+ACTIVE_COMPANY = "southeast_oklahoma_medical_clinic"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
