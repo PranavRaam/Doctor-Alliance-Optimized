@@ -86,11 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "triton_health_pllc_dr_sullivan",
-    "chickasaw_nation_medical_center",
-    "southeast_oklahoma_medical_clinic",
-    "terry_draper_restore_family_medical_clinic",
-    "tpch_practice_dr_tradewell"
+    "community_health_centers_inc_oklahoma",
+    "kates_lindsay_primary_care_of_ada",
+    "doctors_2_u"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -127,44 +125,32 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "triton_health_pllc_dr_sullivan", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic", "terry_draper_restore_family_medical_clinic", "tpch_practice_dr_tradewell"
+# Available company keys: "community_health_centers_inc_oklahoma", "kates_lindsay_primary_care_of_ada", "doctors_2_u"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with the 5 companies requested for current pipeline processing
+# Updated with the 3 companies requested for current pipeline processing
 COMPANIES = {
-"triton_health_pllc_dr_sullivan": {
-    "name": "Triton Health PLLC Dr. Sullivan, Cary",
-    "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
-    "helper_id": "handrewph19",
-    "description": "Triton Health PLLC Dr. Sullivan, Cary - Medical practice services"
+"community_health_centers_inc_oklahoma": {
+    "name": "Community Health Centers,Inc Oklahoma",
+    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
+    "helper_id": "ihelperph22478",
+    "description": "Community Health Centers,Inc Oklahoma - Community health services"
 },
-"chickasaw_nation_medical_center": {
-    "name": "Chickasaw Nation Medical Center",
-    "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
-    "helper_id": "michaelph1",
-    "description": "Chickasaw Nation Medical Center - Medical center services"
+"kates_lindsay_primary_care_of_ada": {
+    "name": "KATES, LINDSAY / Primary care of Ada",
+    "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
+    "helper_id": "handrewph44",
+    "description": "KATES, LINDSAY / Primary care of Ada - Primary care services"
 },
-"southeast_oklahoma_medical_clinic": {
-    "name": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton",
-    "pg_company_id": "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c",
-    "helper_id": "handrewph14",
-    "description": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton - Medical clinic services"
-},
-"terry_draper_restore_family_medical_clinic": {
-    "name": "Terry Draper / Restore Family Medical clinic",
-    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
-    "helper_id": "acooperph1020",
-    "description": "Terry Draper / Restore Family Medical clinic - Family medical services"
-},
-"tpch_practice_dr_tradewell": {
-    "name": "TPCH Practice/ Dr. Tradewell",
-    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
-    "helper_id": "handrewph12",
-    "description": "TPCH Practice/ Dr. Tradewell - Medical practice services"
+"doctors_2_u": {
+    "name": "Doctors 2 U",
+    "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
+    "helper_id": "dallianceph9213",
+    "description": "Doctors 2 U - Medical services"
 }
 }
 
@@ -173,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "triton_health_pllc_dr_sullivan"  # Change this for each company
+ACTIVE_COMPANY = "community_health_centers_inc_oklahoma"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -306,32 +292,22 @@ def show_active_company():
 # DOCUMENT TYPE FILTERING CONFIGURATION
 # ===========================================
 
-# Document type filtering for the 5 companies in current pipeline
+# Document type filtering for the 3 companies in current pipeline
 DOCUMENT_TYPE_FILTERS = {
-    "triton_health_pllc_dr_sullivan": {
+    "community_health_centers_inc_oklahoma": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Triton Health PLLC Dr. Sullivan, Cary"
+        "description": "Process all document types for Community Health Centers,Inc Oklahoma"
     },
-    "chickasaw_nation_medical_center": {
+    "kates_lindsay_primary_care_of_ada": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Chickasaw Nation Medical Center"
+        "description": "Process all document types for KATES, LINDSAY / Primary care of Ada"
     },
-    "southeast_oklahoma_medical_clinic": {
+    "doctors_2_u": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
-    },
-    "terry_draper_restore_family_medical_clinic": {
-        "enabled": False,
-        "allowed_types": [],
-        "description": "Process all document types for Terry Draper / Restore Family Medical clinic"
-    },
-    "tpch_practice_dr_tradewell": {
-        "enabled": False,
-        "allowed_types": [],
-        "description": "Process all document types for TPCH Practice/ Dr. Tradewell"
+        "description": "Process all document types for Doctors 2 U"
     }
 }
 

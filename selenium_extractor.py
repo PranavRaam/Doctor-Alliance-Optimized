@@ -18,13 +18,13 @@ import aiohttp
 def log_console(msg):
     print(msg)
 
-def wait_and_find_element(driver, by, value, timeout=10):
-    return WebDriverWait(driver, timeout).until(EC.presence_of_element_located((by, value)))
+def wait_and_find_element(driver, by, value, timeout=5):  # Reduced default from 10 to 5
+    return WebDriverWait(driver, timeout, poll_frequency=0.2).until(EC.presence_of_element_located((by, value)))  # Added faster polling
 
-def login_to_da(da_url, da_login, da_password, driver, timeout=15):
+def login_to_da(da_url, da_login, da_password, driver, timeout=10):  # Reduced timeout from 15 to 10
     log_console(f"🔐 Logging into DA Backoffice...")
     driver.get(da_url)
-    wait = WebDriverWait(driver, timeout)
+    wait = WebDriverWait(driver, timeout, poll_frequency=0.2)  # Added faster polling
     wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']"))).send_keys(da_login)
     driver.find_element(By.XPATH, "//input[@placeholder='Password']").send_keys(da_password)
     driver.find_element(By.XPATH, "//button[@type='submit']").click()
@@ -481,17 +481,21 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         # Try direct navigation to signed page first
         try:
             driver.get("https://live.doctoralliance.com/all/Documents/Signed")
-            time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
+            # Wait only for critical elements, not full page load
+            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            time.sleep(0.5)  # Minimal wait
             log_console("✅ Direct navigation to signed page successful")
         except Exception as e:
             log_console(f"⚠️ Direct navigation failed, trying click method: {e}")
             signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
             signed_link.click()
-            time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
+            time.sleep(0.5)  # Minimal wait
         
-        # Wait for page to load completely
-        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.TAG_NAME, "body")))  # Reduced from 10 to 5 seconds
-        time.sleep(1)  # Reduced from 2 to 1 second
+        # Wait only for essential content
+        try:
+            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+        except:
+            time.sleep(1)  # Fallback if date picker not immediately available
         
         # Click the "All" button to show all signed documents (not just "Signed & Unfiled")
         log_console("🔘 Clicking 'All' button to show all signed documents...")
@@ -524,11 +528,11 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                     log_console("🔘 'All' button found but not active, clicking...")
                     try:
                         driver.execute_script("arguments[0].click();", all_button)
-                        time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
+                        time.sleep(0.3)  # Minimal wait for click registration
                         log_console("✅ Clicked 'All' button with JavaScript")
                     except:
                         all_button.click()
-                        time.sleep(1.5)  # Reduced from 3 to 1.5 seconds
+                        time.sleep(0.3)  # Minimal wait for click registration
                         log_console("✅ Clicked 'All' button with regular click")
                 else:
                     log_console("✅ 'All' button is already active")
@@ -544,13 +548,13 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         try:
             start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=5)  # Reduced from 10 to 5 seconds
             start_date_input.clear()
-            time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
+            time.sleep(0.1)  # Ultra minimal wait
             start_date_input.send_keys(start_date)
             log_console(f"✅ Start date set to: {start_date}")
             
-            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=5)  # Reduced from 10 to 5 seconds
+            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=3)  # Even faster timeout
             end_date_input.clear()
-            time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
+            time.sleep(0.1)  # Ultra minimal wait
             if not end_date:
                 end_date = datetime.now().strftime("%m/%d/%Y")
             end_date_input.send_keys(end_date)
@@ -583,7 +587,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                     break
                 except Exception as e:
                     log_console(f"⚠️ Click attempt {attempt+1} failed: {e}")
-                    time.sleep(0.5)  # Reduced from 1 to 0.5 seconds
+                    time.sleep(0.2)  # Ultra minimal wait
             
             if not click_successful:
                 log_console("❌ Failed to click 'Go' button after 3 attempts")
@@ -593,22 +597,24 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             log_console(f"❌ Error finding/clicking 'Go' button: {e}")
             return [], {}
         
-        # Wait for page to load with progress indicators
+        # Wait for filtered results with minimal delays
         log_console("⏳ Waiting for filtered results to load...")
-        time.sleep(2)  # Reduced from 5 to 2 seconds
         
-        # Check for loading indicators and wait accordingly
-        for wait_attempt in range(4):  # Reduced from 6 to 4 attempts (max 12 seconds instead of 30)
+        # Quick check for table content instead of loading indicators
+        table_loaded = False
+        for wait_attempt in range(3):  # Reduced attempts
             try:
-                # Check if page is still loading
-                loading_element = driver.find_element(By.XPATH, "//div[contains(@class, 'loading')]")
-                if loading_element.is_displayed():
-                    log_console(f"⏳ Page still loading... (attempt {wait_attempt+1}/4)")
-                    time.sleep(3)  # Reduced from 5 to 3 seconds
-                    continue
+                # Look directly for table content
+                table = driver.find_element(By.XPATH, "//table[contains(@class, 'table')]//tbody")
+                if table:
+                    table_loaded = True
+                    break
             except:
-                pass
-            break
+                time.sleep(1)  # Short wait between attempts
+                continue
+        
+        if not table_loaded:
+            time.sleep(2)  # Final fallback wait if table not detected
         
         # Check for "No matching records found" with better selector
         try:
@@ -1022,7 +1028,7 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--disable-background-timer-throttling")
     options.add_argument("--disable-renderer-backgrounding")
     options.add_argument("--disable-backgrounding-occluded-windows")
-    options.add_argument("--page-load-strategy=eager")
+    options.add_argument("--page-load-strategy=none")  # Fastest loading - don't wait for everything
     options.add_argument("--aggressive-cache-discard")
     options.add_argument("--memory-pressure-off")
     # Removed --disable-javascript to prevent timeout issues
@@ -1079,13 +1085,49 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
     options.add_argument("--memory-pressure-off")
     options.add_argument("--max_old_space_size=4096")
     
+    # Ultra-aggressive network and rendering optimizations for speed
+    options.add_argument("--disable-features=MediaRouter")
+    options.add_argument("--disable-component-update")
+    options.add_argument("--disable-domain-reliability")
+    options.add_argument("--disable-features=AudioServiceOutOfProcess")
+    options.add_argument("--disable-popup-blocking")
+    options.add_argument("--disable-background-sync")
+    options.add_argument("--no-default-browser-check")
+    options.add_argument("--disable-component-extensions-with-background-pages")
+    options.add_argument("--disable-features=TransferSizeUpdatedOnPrefetch")
+    options.add_argument("--disable-features=VizServiceDisplay")
+    options.add_argument("--disable-web-resources")
+    options.add_argument("--disable-datasaver-prompt")
+    options.add_argument("--disable-save-password-bubble")
+    options.add_argument("--disable-session-crashed-bubble")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-dev-tools")
+    
+    # Network-level speed optimizations
+    prefs = {
+        "profile.default_content_setting_values": {
+            "images": 2,  # Block images for speed
+            "plugins": 2,  # Block plugins
+            "popups": 2,   # Block popups
+            "geolocation": 2,  # Block location
+            "notifications": 2,  # Block notifications
+            "media_stream": 2,  # Block media
+        },
+        "profile.managed_default_content_settings": {
+            "images": 2
+        },
+        "profile.content_settings.exceptions.images": {},
+        "webkit.webprefs.loads_images_automatically": False
+    }
+    options.add_experimental_option("prefs", prefs)
+    
     driver = webdriver.Chrome(options=options)
     
     try:
         driver.maximize_window()
-        driver.set_page_load_timeout(30)  # Increased for stability
-        driver.implicitly_wait(5)  # Increased for stability
-        driver.set_script_timeout(30)  # Increased for stability
+        driver.set_page_load_timeout(15)  # Aggressive timeout for speed
+        driver.implicitly_wait(2)  # Minimal wait for speed  
+        driver.set_script_timeout(10)  # Reduced script timeout for speed
         
         # Add stealth mode
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -1097,11 +1139,11 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         wait_and_find_element(driver, By.CLASS_NAME, "select2-search__field").send_keys("Users")
         WebDriverWait(driver, 8).until(EC.visibility_of_element_located((By.XPATH, "//li[contains(@id, 'select2-SearchType-result')][1]"))).click()
         wait_and_find_element(driver, By.CLASS_NAME, "btn-success").click()
-        time.sleep(0.5)
+        time.sleep(0.2)  # Minimal wait
         wait_and_find_element(driver, By.CLASS_NAME, "linkedRow").click()
-        time.sleep(0.5)
+        time.sleep(0.2)  # Minimal wait
         wait_and_find_element(driver, By.LINK_TEXT, "Impersonate").click()
-        time.sleep(1)
+        time.sleep(0.5)  # Reduced wait
         driver.switch_to.window(driver.window_handles[1])
         
         # Inbox
@@ -1111,7 +1153,11 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             driver.current_url  # This will throw an exception if session is dead
             
             driver.get("https://live.doctoralliance.com/all/Inbox")
-            time.sleep(2)  # Reduced from 5 to 2 seconds
+            # Wait only for essential inbox content
+            try:
+                WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "table")))
+            except:
+                time.sleep(1)  # Minimal fallback
             log_console("✅ Successfully navigated to inbox page")
         except Exception as e:
             log_console(f"❌ Failed to navigate to inbox page (may be session issue): {e}")
