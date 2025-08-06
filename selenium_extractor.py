@@ -18,233 +18,6 @@ import aiohttp
 def log_console(msg):
     print(msg)
 
-# ====================
-# MODULAR HELPER FUNCTIONS
-# ====================
-
-def setup_signed_page(driver):
-    """Navigate to signed page and click 'All' button"""
-    try:
-        log_console("Navigating to Signed tab...")
-        
-        # Try direct navigation to signed page first
-        try:
-            driver.get("https://live.doctoralliance.com/all/Documents/Signed")
-            # Wait only for critical elements, not full page load
-            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(0.5)  # Minimal wait
-            log_console("✅ Direct navigation to signed page successful")
-        except Exception as e:
-            log_console(f"⚠️ Direct navigation failed, trying click method: {e}")
-            signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
-            signed_link.click()
-            time.sleep(0.5)  # Minimal wait
-        
-        # Wait only for essential content
-        try:
-            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
-        except:
-            time.sleep(1)  # Fallback if date picker not immediately available
-        
-        return True
-    except Exception as e:
-        log_console(f"❌ Failed to setup signed page: {e}")
-        return False
-
-def click_all_button(driver):
-    """Click the 'All' button to show all signed documents"""
-    try:
-        log_console("🔘 Clicking 'All' button to show all signed documents...")
-        
-        # Extended list of selectors for the "All" button
-        all_button_selectors = [
-            "//button[@data-doc-status='All']",
-            "//a[@data-doc-status='All']",
-            "//button[contains(text(), 'All')]",
-            "//a[contains(text(), 'All')]",
-            "//button[contains(@class, 'btn') and contains(text(), 'All')]",
-            "//a[contains(@class, 'btn') and contains(text(), 'All')]",
-            "//*[@data-doc-status='All']"
-        ]
-        
-        all_button = None
-        for selector in all_button_selectors:
-            try:
-                all_button = driver.find_element(By.XPATH, selector)
-                if all_button:
-                    log_console(f"✅ Found 'All' button with selector: {selector}")
-                    break
-            except:
-                continue
-        
-        if all_button:
-            # Check if it's already active
-            button_class = all_button.get_attribute("class")
-            if "active" not in button_class.lower():
-                log_console("🔘 'All' button found but not active, clicking...")
-                try:
-                    driver.execute_script("arguments[0].click();", all_button)
-                    time.sleep(0.3)  # Minimal wait for click registration
-                    log_console("✅ Clicked 'All' button with JavaScript")
-                except:
-                    all_button.click()
-                    time.sleep(0.3)  # Minimal wait for click registration
-                    log_console("✅ Clicked 'All' button with regular click")
-            else:
-                log_console("✅ 'All' button is already active")
-        else:
-            log_console("⚠️ Could not find 'All' button, continuing with current view")
-            
-        return True
-    except Exception as e:
-        log_console(f"⚠️ Error with 'All' button: {e}")
-        return False
-
-def apply_date_filters(driver, start_date, end_date):
-    """Apply date filters and click Go button"""
-    try:
-        log_console("📅 Applying date filters...")
-        
-        start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=5)
-        start_date_input.clear()
-        time.sleep(0.1)  # Ultra minimal wait
-        start_date_input.send_keys(start_date)
-        log_console(f"✅ Start date set to: {start_date}")
-        
-        end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=3)
-        end_date_input.clear()
-        time.sleep(0.1)  # Ultra minimal wait
-        if not end_date:
-            end_date = datetime.now().strftime("%m/%d/%Y")
-        end_date_input.send_keys(end_date)
-        log_console(f"✅ End date set to: {end_date}")
-        
-        return True
-    except Exception as e:
-        log_console(f"❌ Error setting date filters: {e}")
-        return False
-
-def click_go_button(driver):
-    """Click the Go button to apply filters"""
-    try:
-        log_console("🔘 Clicking 'Go' button to apply date filters...")
-        go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=5)
-        
-        # Try multiple click methods
-        click_successful = False
-        for attempt in range(3):
-            try:
-                if attempt == 0:
-                    driver.execute_script("arguments[0].click();", go_button)
-                    log_console("✅ 'Go' button clicked with JavaScript")
-                elif attempt == 1:
-                    go_button.click()
-                    log_console("✅ 'Go' button clicked with regular click")
-                else:
-                    driver.execute_script("arguments[0].focus(); arguments[0].click();", go_button)
-                    log_console("✅ 'Go' button clicked with focus+click")
-                
-                click_successful = True
-                break
-            except Exception as e:
-                log_console(f"⚠️ Click attempt {attempt+1} failed: {e}")
-                time.sleep(0.2)  # Ultra minimal wait
-        
-        return click_successful
-    except Exception as e:
-        log_console(f"❌ Error finding/clicking 'Go' button: {e}")
-        return False
-
-def wait_for_page_load(driver):
-    """Wait for the page to load after applying filters"""
-    log_console("⏳ Waiting for filtered results to load...")
-    
-    # Quick check for table content instead of loading indicators
-    table_loaded = False
-    for wait_attempt in range(3):  # Reduced attempts
-        try:
-            # Look directly for table content
-            table = driver.find_element(By.XPATH, "//table[contains(@class, 'table')]//tbody")
-            if table:
-                table_loaded = True
-                break
-        except:
-            time.sleep(1)  # Short wait between attempts
-            continue
-    
-    if not table_loaded:
-        time.sleep(3)  # Increased fallback wait for better page loading
-        log_console("⏳ Additional wait for page to fully load...")
-
-def check_for_no_records(driver):
-    """Check if 'No matching records found' message is present"""
-    try:
-        # More specific selectors to avoid false positives
-        no_records_selectors = [
-            "//table//td[contains(text(), 'No matching records found') and @colspan]",  # More specific - must be in table with colspan
-            "//div[@class='dataTables_empty' and contains(text(), 'No matching records found')]",  # DataTables specific
-            "//td[@class='dataTables_empty' and contains(text(), 'No matching records found')]"  # DataTables specific
-        ]
-        
-        for selector in no_records_selectors:
-            try:
-                no_records_element = driver.find_element(By.XPATH, selector)
-                if no_records_element.is_displayed():
-                    log_console("❌ No Signed Orders found in the specified date range")
-                    return True
-            except:
-                continue
-                
-        return False
-    except Exception:
-        return False
-
-def find_table_rows(driver):
-    """Find table rows using multiple selectors"""
-    table_selectors = [
-        "#signed-docs-grid tbody tr",
-        "table tbody tr",
-        ".table tbody tr",
-        "tbody tr"
-    ]
-    
-    for selector in table_selectors:
-        try:
-            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-            time.sleep(1)
-            table_rows = driver.find_elements(By.CSS_SELECTOR, selector)
-            if table_rows and len(table_rows) > 0:
-                log_console(f"✅ Found table with selector: {selector} ({len(table_rows)} rows)")
-                return table_rows
-        except:
-            continue
-    
-    return None
-
-def extract_document_id(row):
-    """Extract document ID from a table row"""
-    doc_id_selectors = [
-        "td:nth-child(10) span.text-muted",
-        "td:nth-child(9) span.text-muted", 
-        "td:nth-child(8) span.text-muted",
-        "td:nth-child(10)",
-        "td:nth-child(9)",
-        "td:nth-child(8)",
-        "td:last-child span.text-muted",
-        "td:last-child"
-    ]
-    
-    for selector in doc_id_selectors:
-        try:
-            element = row.find_element(By.CSS_SELECTOR, selector)
-            doc_id = element.text.strip()
-            if doc_id and doc_id.isdigit() and len(doc_id) >= 6:  # Document IDs are typically 7+ digits
-                return doc_id
-        except:
-            continue
-    
-    return None
-
 def wait_and_find_element(driver, by, value, timeout=5):  # Reduced default from 10 to 5
     return WebDriverWait(driver, timeout, poll_frequency=0.2).until(EC.presence_of_element_located((by, value)))  # Added faster polling
 
@@ -841,8 +614,28 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 continue
         
         if not table_loaded:
-            time.sleep(3)  # Increased fallback wait for better page loading
-            log_console("⏳ Additional wait for page to fully load...")
+            time.sleep(2)  # Final fallback wait if table not detected
+        
+        # Check for "No matching records found" with better selector
+        try:
+            no_records_selectors = [
+                "//td[@colspan='11' and contains(text(), 'No matching records found')]",
+                "//td[contains(text(), 'No matching records found')]",
+                "//div[contains(text(), 'No matching records found')]",
+                "//span[contains(text(), 'No matching records')]"
+            ]
+            
+            for selector in no_records_selectors:
+                try:
+                    no_records_element = driver.find_element(By.XPATH, selector)
+                    if no_records_element.is_displayed():
+                        log_console("❌ No Signed Orders found in the specified date range")
+                        return [], {}
+                except:
+                    continue
+                    
+        except Exception:
+            pass
         
         log_console("✅ Date filters applied successfully, proceeding with extraction...")
             
@@ -856,33 +649,13 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             new_docs_on_page = 0  # Count new documents found on this page
             
             try:
-                # Try multiple selectors for the signed documents table
-                table_selectors = [
-                    "#signed-docs-grid tbody tr",
-                    "table tbody tr",
-                    ".table tbody tr",
-                    "tbody tr"
-                ]
-                
-                table_rows = None
-                for selector in table_selectors:
-                    try:
-                        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
-                        time.sleep(1)
-                        table_rows = driver.find_elements(By.CSS_SELECTOR, selector)
-                        if table_rows and len(table_rows) > 0:
-                            log_console(f"✅ Found table with selector: {selector} ({len(table_rows)} rows)")
-                            break
-                    except:
-                        continue
+                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
+                time.sleep(2)
+                table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
                 
                 # Add null check for table_rows
-                if table_rows is None or len(table_rows) == 0:
-                    # Check for "no records" message only when we can't find table rows
-                    if check_for_no_records(driver):
-                        log_console("❌ No Signed Orders found in the specified date range")
-                        break
-                    log_console("⚠️ No table rows found with any selector, breaking out of loop")
+                if table_rows is None:
+                    log_console("⚠️ table_rows is None, breaking out of loop")
                     break
                     
             except TimeoutException:
@@ -890,6 +663,10 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 break
             except Exception as e:
                 log_console(f"⚠️ Error finding table rows: {e}")
+                break
+                
+            if not table_rows:
+                log_console("⚠️ No table rows found, breaking out of loop")
                 break
                 
             # Debug: Show table structure for first row
@@ -907,9 +684,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
                 
             for row in table_rows:
                 try:
-                    # Extract document ID using modular function
-                    doc_id = extract_document_id(row)
-                    
+                    doc_id = row.find_element(By.CSS_SELECTOR, "td:nth-child(10) span.text-muted").text.strip()
                     if doc_id and doc_id not in seen_ids:
                         # Try to extract document type from signed table
                         doc_type = ""

@@ -81,13 +81,13 @@ FIELD_EXTRACTION_CONFIG = {
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
     "start_date": "08/01/2025",
-    "end_date": "08/31/2025",
+    "end_date": "08/06/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
     "the_clinic_central_oklahoma_family_medical_center",
-    "ssm_health_shawnee",
+    "ssm_health_shawnee", 
     "community_physician_group_cpg_clinics"
 ]
 
@@ -125,20 +125,20 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "the_clinic_central_oklahoma_family_medical_center", "ssm_health_shawnee", "community_physician_group_cpg_clinics"
+# Available company keys: "triton_health_pllc_dr_sullivan", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic", "terry_draper_restore_family_medical_clinic", "tpch_practice_dr_tradewell"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with the 3 companies requested for current pipeline processing
+# Updated with the 5 companies requested for current pipeline processing
 COMPANIES = {
 "the_clinic_central_oklahoma_family_medical_center": {
     "name": "The Clinic @ Central Oklahoma Family Medical Center",
     "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
     "helper_id": "dallianceph9212",
-    "description": "The Clinic @ Central Oklahoma Family Medical Center - Family medical services"
+    "description": "The Clinic @ Central Oklahoma Family Medical Center - Family medical center services"
 },
 "ssm_health_shawnee": {
     "name": "SSM Health Shawnee",
@@ -150,7 +150,7 @@ COMPANIES = {
     "name": "Community Physician Group-CPG Clinics",
     "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
     "helper_id": "ihelperph11201",
-    "description": "Community Physician Group-CPG Clinics - Medical clinic services"
+    "description": "Community Physician Group-CPG Clinics - Medical practice services"
 }
 }
 
