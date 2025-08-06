@@ -16,7 +16,7 @@ from performance_monitor import start_monitoring, update_progress, stop_monitori
 API_BASE = "https://api.doctoralliance.com/document/getfile?docId.id="
 AUTH_HEADER = {
     "Accept": "application/json",
-    "Authorization": "Bearer BwmWBqhXAEvG70Irt_1J8kJM8_4p81dStSUAeWXFho6d-Fu2Ymsox3qFLaQgZcX_EA-JjYi_MpiDS5FzulJ6hw2Qne5DearMdRfkkS_E8GaG5fy82RI_YhwM1cn-VtTQG5FSAjUPukOuJri8lPjQUZS1vzh9bRd3f3FQQlJxwzMKDfrqkt_03SR70bjDsKA9KYdJibMr5DBpaUkyJNzATdlewBwkeGEnX4EfzRj_mn_gm_G7Pjdo2qCCXbDhGeuH5lLuKvqFciQy_Wb8TEOR7Q"
+    "Authorization": "Bearer zbs0Sj0CL-7JGE39N60iVdG-w7ZVNOrJHCjYrq8DA4uatgxI0gD0_niGYl72ynOsxkA72V4lQHWJ1lrOPWvmRZDXv0AevDIgKiPjICG_wdsk1qIHz8n_b2Fz7rIQqwCexi8sMz2NeoUxXyFOibxIm2HLUNZGoAOGInowvfiVErnF4RFHjUEdU1DrK8KREo67B7jbhQ91EEkxyZAFSSeU-AA0YPUlbJAIjgeq6rrzzjwyqKAvTmkC3T0Hc0Q_jCVMcQuNm2nZQdxj1nOBkq8V2Q"
 }
 
 # PATIENT_API will be set dynamically based on company configuration

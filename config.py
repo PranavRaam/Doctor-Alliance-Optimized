@@ -13,7 +13,7 @@ def readConfig():
 API_BASE = "https://api.doctoralliance.com/document/getfile?docId.id="
 AUTH_HEADER = {
     "Accept": "application/json",
-    "Authorization": "Bearer BwmWBqhXAEvG70Irt_1J8kJM8_4p81dStSUAeWXFho6d-Fu2Ymsox3qFLaQgZcX_EA-JjYi_MpiDS5FzulJ6hw2Qne5DearMdRfkkS_E8GaG5fy82RI_YhwM1cn-VtTQG5FSAjUPukOuJri8lPjQUZS1vzh9bRd3f3FQQlJxwzMKDfrqkt_03SR70bjDsKA9KYdJibMr5DBpaUkyJNzATdlewBwkeGEnX4EfzRj_mn_gm_G7Pjdo2qCCXbDhGeuH5lLuKvqFciQy_Wb8TEOR7Q"
+    "Authorization": "Bearer zbs0Sj0CL-7JGE39N60iVdG-w7ZVNOrJHCjYrq8DA4uatgxI0gD0_niGYl72ynOsxkA72V4lQHWJ1lrOPWvmRZDXv0AevDIgKiPjICG_wdsk1qIHz8n_b2Fz7rIQqwCexi8sMz2NeoUxXyFOibxIm2HLUNZGoAOGInowvfiVErnF4RFHjUEdU1DrK8KREo67B7jbhQ91EEkxyZAFSSeU-AA0YPUlbJAIjgeq6rrzzjwyqKAvTmkC3T0Hc0Q_jCVMcQuNm2nZQdxj1nOBkq8V2Q"
 }
 
 api_key = "EVtCfEbXd2pvVrkOaByfss3HBMJy9x0FvwXdFhCmenum0RLvHCZNJQQJ99BDACYeBjFXJ3w3AAABACOGe7zr"
@@ -86,9 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "infectious_diseases_consultants_oklahoma_city",
-    "pushmataha_family_medical_center",
-    "crescent_infectious_diseases"
+    "norman_regional_ortho_central",
+    "triton_health_pllc_dr_sullivan_cary",
+    "chickasaw_nation_medical_center"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -132,25 +132,25 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with the 5 companies requested for current pipeline processing
+# Updated with the 3 new companies for current pipeline processing
 COMPANIES = {
-"infectious_diseases_consultants_oklahoma_city": {
-    "name": "Infectious Diseases Consultants of Oklahoma City (Idcokc)",
-    "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
-    "helper_id": "ihelperph9223",
-    "description": "Infectious Diseases Consultants of Oklahoma City - Infectious disease services"
+"norman_regional_ortho_central": {
+    "name": "Norman Regional - Ortho Central",
+    "pg_company_id": "3c002ed5-f9b5-4d07-914a-4856c268c977",
+    "helper_id": "ihelperph22459",
+    "description": "Norman Regional - Ortho Central - Orthopedic services"
 },
-"pushmataha_family_medical_center": {
-    "name": "Pushmataha Family Medical Center",
-    "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
-    "helper_id": "ihelperph9221",
-    "description": "Pushmataha Family Medical Center - Family medical center services"
+"triton_health_pllc_dr_sullivan_cary": {
+    "name": "Triton Health PLLC Dr. Sullivan, Cary",
+    "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
+    "helper_id": "handrewph19",
+    "description": "Triton Health PLLC Dr. Sullivan, Cary - Medical services"
 },
-"crescent_infectious_diseases": {
-    "name": "Crescent Infectious Diseases",
-    "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
-    "helper_id": "handrewph7202",
-    "description": "Crescent Infectious Diseases - Infectious disease services"
+"chickasaw_nation_medical_center": {
+    "name": "Chickasaw Nation Medical Center",
+    "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
+    "helper_id": "michaelph1",
+    "description": "Chickasaw Nation Medical Center - Medical center services"
 }
 }
 
@@ -159,7 +159,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies
-ACTIVE_COMPANY = "infectious_diseases_consultants_oklahoma_city"  # Change this for each company
+ACTIVE_COMPANY = "norman_regional_ortho_central"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
