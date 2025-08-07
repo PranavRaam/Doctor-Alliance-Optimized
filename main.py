@@ -6,7 +6,11 @@ import pandas as pd
 import requests
 import json
 import csv
+import base64
+import tempfile
 from datetime import datetime
+
+
 
 def run_script(script, input_args=None):
     args = [sys.executable, script]
@@ -17,12 +21,16 @@ def run_script(script, input_args=None):
         print(f"❌ Error running {script}, exiting.")
         sys.exit(1)
 
+
+
 def get_latest_file(directory, pattern):
     files = glob.glob(os.path.join(directory, pattern))
     if not files:
         return None
     latest_file = max(files, key=os.path.getmtime)
     return latest_file
+
+
 
 def get_existing_document_ids(company_key=None):
     from config import get_company_api_url, get_active_company
@@ -44,6 +52,8 @@ def get_existing_document_ids(company_key=None):
     except Exception as e:
         print(f"❌ Error fetching existing Document IDs: {e}")
         return set()
+
+
 
 def cleanup_old_excels():
     files_to_delete = [
@@ -78,6 +88,8 @@ def cleanup_old_excels():
             except Exception as e:
                 print(f"[CLEANUP] Could not delete {f}: {e}")
 
+
+
 def load_company_mapping():
     """Load company mapping from company.json."""
     try:
@@ -89,6 +101,8 @@ def load_company_mapping():
     except FileNotFoundError:
         print("⚠️  company.json not found")
         return {}
+
+
 
 def load_pg_mapping():
     """Load PG mapping from pg_ids.csv."""
@@ -102,6 +116,8 @@ def load_pg_mapping():
     except FileNotFoundError:
         print("⚠️  pg_ids.csv not found")
         return {}
+
+
 
 def format_uuid(uuid_str):
     """Add hyphens to UUID string to match mapping format."""
@@ -117,6 +133,8 @@ def format_uuid(uuid_str):
         return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
     else:
         return uuid_str  # Return as is if not 32 characters
+
+
 
 def clean_company_name(name):
     """Clean company name for use in filename."""
@@ -135,162 +153,475 @@ def clean_company_name(name):
     
     return cleaned
 
-def create_failed_records_excel(supreme_excel_path, company_key, start_date, end_date):
-    """Create failed records Excel file from supreme Excel output."""
-    print(f"Creating failed records report from: {supreme_excel_path}")
+
+
+def create_success_failed_excels(final_excel_path, company_key, start_date, end_date):
+    """Create a single Excel file with two sheets: successful and failed records from final upload file."""
+    print(f"Creating success/failed Excel sheets from: {final_excel_path}")
     
-    # Load mappings
-    company_mapping = load_company_mapping()
-    pg_mapping = load_pg_mapping()
+    if not os.path.exists(final_excel_path):
+        print(f"❌ Final Excel file not found: {final_excel_path}")
+        return None, None
     
-    # Read the supreme Excel file
-    df = pd.read_excel(supreme_excel_path)
+    # Read the final Excel file
+    df = pd.read_excel(final_excel_path)
+    print(f"Processing {len(df)} total records...")
     
-    # Debug: Print available columns
-    print(f"Available columns in supreme Excel: {list(df.columns)}")
+    # Define success criteria: Both PATIENTUPLOAD_STATUS and ORDERUPLOAD_STATUS must be "TRUE"
+    successful_records = df[
+        (df['PATIENTUPLOAD_STATUS'] == 'TRUE') & 
+        (df['ORDERUPLOAD_STATUS'] == 'TRUE')
+    ].copy()
     
-    # Check if PATIENTUPLOAD_STATUS column exists (only added by Upload_Patients_Orders.py)
-    if "PATIENTUPLOAD_STATUS" not in df.columns:
-        print("PATIENTUPLOAD_STATUS column not found. Creating failed records based on PatientExist status...")
-        # Check if PatientExist column exists
-        if "PatientExist" not in df.columns:
-            print("❌ PatientExist column not found either. Cannot create failed records report.")
+    # Failed records: Either upload status is not "TRUE"
+    failed_records = df[
+        ~((df['PATIENTUPLOAD_STATUS'] == 'TRUE') & 
+          (df['ORDERUPLOAD_STATUS'] == 'TRUE'))
+    ].copy()
+    
+    print(f"✅ Successful records: {len(successful_records)}")
+    print(f"❌ Failed records: {len(failed_records)}")
+    
+    # Create filename with date range
+    start_date_formatted = start_date.replace("/", "-")
+    end_date_formatted = end_date.replace("/", "-")
+    
+    # Get company name for filename
+    from config import get_company_config
+    try:
+        company = get_company_config(company_key)
+        company_name = clean_company_name(company['name'])
+    except:
+        company_name = company_key
+    
+    # Create single Excel file with both sheets
+    combined_filename = f"{company_name}_processing_report_{start_date_formatted}_{end_date_formatted}.xlsx"
+    
+    # Process failed records with specific columns and failure reasons
+    if len(failed_records) > 0:
+        # Create failed records with specific columns
+        failed_output = pd.DataFrame()
+        
+        # Map columns to required format
+        failed_output["docid"] = failed_records.get("Document ID", "")
+        failed_output["patient_name"] = failed_records.get("patientName", "")
+        failed_output["dob"] = failed_records.get("dob", "")
+        failed_output["dabackofficeid"] = failed_records.get("DABackOfficeID", "")
+        failed_output["mrn_number"] = failed_records.get("mrn", "")
+        
+        # Load mappings for PG name and agency name
+        company_mapping = load_company_mapping()
+        pg_mapping = load_pg_mapping()
+        
+        def get_pg_company_name(pg_id):
+            if pd.isna(pg_id):
+                return ""
+            formatted_pg_id = format_uuid(pg_id)
+            if formatted_pg_id:
+                return pg_mapping.get(formatted_pg_id, "")
+            return ""
+        
+        def get_company_name(company_id):
+            """Convert company ID to company name using company.json."""
+            if pd.isna(company_id):
+                return "Unknown"
+            
+            # Format the UUID with hyphens
+            formatted_company_id = format_uuid(company_id)
+            if formatted_company_id:
+                company_name = company_mapping.get(formatted_company_id, "")
+                if company_name:
+                    return company_name
+                else:
+                    # If company ID not found in mapping, use a fallback approach
+                    print(f"⚠️  Company ID not found in mapping: {formatted_company_id}")
+                    # Try to get company name from active company config as fallback
+                    try:
+                        from config import get_active_company
+                        active_company = get_active_company()
+                        return active_company['name']
+                    except:
+                        return f"Unknown Company ({formatted_company_id})"
+            else:
+                return f"Invalid Company ID ({company_id})"
+        
+        failed_output["pg name"] = failed_records.get("Pgcompanyid", "").apply(get_pg_company_name)
+        failed_output["agency name"] = failed_records.get("companyId", "").apply(get_company_name)
+        
+        # Determine failure reason
+        def get_failure_reason(row):
+            patient_status = row.get("PATIENTUPLOAD_STATUS", "")
+            order_status = row.get("ORDERUPLOAD_STATUS", "")
+            patient_remark = row.get("PATIENTUPLOAD_REMARKS", "")
+            order_remark = row.get("ORDER_CREATION_REMARK", "")
+            
+            reasons = []
+            
+            # Check patient upload failure
+            if patient_status != "TRUE":
+                if patient_status == "SKIPPED":
+                    reasons.append("Patient upload skipped")
+                elif patient_status == "FALSE":
+                    if patient_remark:
+                        reasons.append(f"Patient upload failed: {patient_remark}")
+                    else:
+                        reasons.append("Patient upload failed")
+                else:
+                    reasons.append("Patient upload status unclear")
+            
+            # Check order upload failure
+            if order_status != "TRUE":
+                if order_status == "SKIPPED":
+                    reasons.append("Order upload skipped")
+                elif order_status == "FALSE":
+                    if order_remark:
+                        reasons.append(f"Order upload failed: {order_remark}")
+                    else:
+                        reasons.append("Order upload failed")
+                else:
+                    reasons.append("Order upload status unclear")
+            
+            return "; ".join(reasons) if reasons else "Unknown failure reason"
+        
+        failed_output["reason"] = failed_records.apply(get_failure_reason, axis=1)
+        
+        # Show failure reason summary
+        if len(failed_output) > 0:
+            print(f"📊 Failure reasons summary:")
+            reason_counts = failed_output["reason"].value_counts()
+            for reason, count in reason_counts.head(5).items():
+                print(f"   - {reason}: {count} records")
+    else:
+        print("✅ No failed records!")
+        failed_output = pd.DataFrame()  # Empty DataFrame for failed records
+    
+    # Create Excel file with both sheets
+    with pd.ExcelWriter(combined_filename, engine='openpyxl') as writer:
+        # Write successful records sheet (all columns)
+        if len(successful_records) > 0:
+            successful_records.to_excel(writer, sheet_name='Successful_Records', index=False)
+            print(f"📊 Added successful records sheet: {len(successful_records)} records")
+        else:
+            # Create empty successful sheet with headers
+            empty_successful = pd.DataFrame(columns=df.columns)
+            empty_successful.to_excel(writer, sheet_name='Successful_Records', index=False)
+            print("📊 Added empty successful records sheet")
+        
+        # Write failed records sheet (specific columns)
+        if len(failed_output) > 0:
+            failed_output.to_excel(writer, sheet_name='Failed_Records', index=False)
+            print(f"📊 Added failed records sheet: {len(failed_output)} records")
+        else:
+            # Create empty failed sheet with headers
+            empty_failed = pd.DataFrame(columns=["docid", "patient_name", "dob", "dabackofficeid", "mrn_number", "pg name", "agency name", "reason"])
+            empty_failed.to_excel(writer, sheet_name='Failed_Records', index=False)
+            print("📊 Added empty failed records sheet")
+    
+    print(f"📁 Created combined Excel file: {combined_filename}")
+    
+    # Add Drive links for failed records if any failed records exist
+    if len(failed_records) > 0:
+        print(f"\n☁️  Uploading failed PDFs to Google Drive...")
+        add_drive_links_to_failed_records(failed_output, combined_filename)
+    
+    return combined_filename, combined_filename, None  # Return same filename for both successful and failed
+
+
+
+def get_document_info(doc_id):
+    """Get document information including name from the working document API."""
+    # Import API credentials from supremesheet
+    from supremesheet import API_BASE, AUTH_HEADER
+    
+    # Use the working document API (not the broken getstatus API)
+    url = f"{API_BASE}{doc_id}"
+    try:
+        r = requests.get(url, headers=AUTH_HEADER, timeout=30)
+        data = r.json()
+        
+        if data.get("isSuccess") and 'value' in data:
+            value = data['value']
+            document_name = ""
+            
+            # Debug: Print the full response structure for the first few calls
+            if doc_id in ['9431342', '9431476', '9433593']:  # Debug first few calls
+                print(f"  [DOC_INFO_DEBUG] Full response for {doc_id}:")
+                print(f"  [DOC_INFO_DEBUG] {json.dumps(data, indent=2)}")
+                
+                # Check for documentType structure
+                if 'documentType' in value:
+                    doc_type = value['documentType']
+                    print(f"  [DOC_INFO_DEBUG] documentType structure: {json.dumps(doc_type, indent=2)}")
+                else:
+                    print(f"  [DOC_INFO_DEBUG] No documentType found in value")
+            
+            # Extract document name from documentType
+            if 'documentType' in value:
+                doc_type = value['documentType']
+                if isinstance(doc_type, dict):
+                    # If documentType is an object with displayName/code
+                    if 'displayName' in doc_type:
+                        document_name = doc_type['displayName']
+                    elif 'code' in doc_type:
+                        document_name = doc_type['code']
+                elif isinstance(doc_type, str):
+                    # If documentType is a string (like "485RECERT")
+                    document_name = doc_type
+            
+            if document_name:
+                print(f"  [DOC_INFO] ✅ Found document name: {document_name}")
+                return {
+                    'document_name': document_name,
+                    'document_type': value.get('documentType', {}),
+                    'status': value.get('status', ''),
+                    'success': True
+                }
+            else:
+                print(f"  [DOC_INFO] ❌ No document name found in response")
+                return {'success': False, 'error': 'No document name in response'}
+        else:
+            print(f"  [DOC_INFO] ❌ API call failed. isSuccess={data.get('isSuccess')}")
+            print(f"  [DOC_INFO] Error message: {data.get('errorMessage', 'No error message')}")
+            return {'success': False, 'error': 'API call failed'}
+            
+    except Exception as e:
+        print(f"  [DOC_INFO] Exception for doc_id={doc_id}: {e}")
+        return {'success': False, 'error': str(e)}
+
+
+
+def download_pdf_for_docid(doc_id):
+    """Download PDF for a specific document ID using existing API."""
+    # Import API credentials from supremesheet
+    from supremesheet import API_BASE, AUTH_HEADER
+    
+    url = f"{API_BASE}{doc_id}"
+    try:
+        r = requests.get(url, headers=AUTH_HEADER, timeout=30)
+        data = r.json()
+        
+        if not data.get("isSuccess"):
+            print(f"  [PDF_DOWNLOAD] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}")
             return None
-        # Filter for records where PatientExist is False
-        df = df[df["PatientExist"] == False]
-    else:
-        # Filter for only failed and skipped records
-        df = df[df["PATIENTUPLOAD_STATUS"].isin(["FALSE", "SKIPPED"])]
-    
-    print(f"Processing {len(df)} failed/skipped records...")
-    
-    # Check if we have any records to process
-    if len(df) == 0:
-        print("❌ No failed/skipped records found.")
-        return None
-    
-    # Create output dataframe with selected columns
-    df_out = pd.DataFrame()
-    
-    # Safely access columns with fallbacks
-    try:
-        df_out["docid"] = df.get("Document ID", "")
-        df_out["patient_name"] = df.get("patientName", "")
-        df_out["dob"] = df.get("dob", "")
-        df_out["dabackofficeid"] = df.get("DABackOfficeID", "")
-        df_out["mrn_number"] = df.get("mrn", "")
+        
+        # Extract PDF buffer from response
+        if 'value' in data:
+            value_obj = data['value']
+            if isinstance(value_obj, str):
+                # Sometimes value is a JSON string
+                try:
+                    value_obj = json.loads(value_obj)
+                except:
+                    print(f"  [PDF_DOWNLOAD] Could not parse value as JSON for {doc_id}")
+                    return None
+            
+            if isinstance(value_obj, dict) and 'documentBuffer' in value_obj:
+                document_buffer = value_obj['documentBuffer']
+                if document_buffer:
+                    print(f"  [PDF_DOWNLOAD] ✅ Downloaded PDF for {doc_id}")
+                    return document_buffer
+                else:
+                    print(f"  [PDF_DOWNLOAD] Empty document buffer for {doc_id}")
+                    return None
+            else:
+                print(f"  [PDF_DOWNLOAD] No documentBuffer in response for {doc_id}")
+                return None
+        else:
+            print(f"  [PDF_DOWNLOAD] No value in response for {doc_id}")
+            return None
+            
     except Exception as e:
-        print(f"❌ Error accessing DataFrame columns: {e}")
-        print(f"Available columns: {list(df.columns)}")
+        print(f"  [PDF_DOWNLOAD] Exception for doc_id={doc_id}: {e}")
         return None
+
+
+
+def upload_pdf_to_drive(pdf_bytes, doc_id):
+    """Upload PDF to Google Drive and return the Drive link."""
+    import tempfile
     
-    # Apply company name conversion
-    def get_pg_company_name(pg_id):
-        """Convert PG ID to company name using pg_ids.csv."""
-        if pd.isna(pg_id):
-            return ""
-        
-        # Format the UUID with hyphens
-        formatted_pg_id = format_uuid(pg_id)
-        if formatted_pg_id:
-            return pg_mapping.get(formatted_pg_id, "")
-        else:
-            return ""
-    
-    def get_company_name(company_id):
-        """Convert company ID to company name using company.json."""
-        if pd.isna(company_id):
-            return ""
-        
-        # Format the UUID with hyphens
-        formatted_company_id = format_uuid(company_id)
-        if formatted_company_id:
-            return company_mapping.get(formatted_company_id, "")
-        else:
-            return ""
+    # Create temporary file for upload
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_file:
+        temp_file.write(pdf_bytes)
+        temp_file_path = temp_file.name
     
     try:
-        df_out["pg name"] = df.get("Pgcompanyid", "").apply(get_pg_company_name)
-        df_out["agency name"] = df.get("companyId", "").apply(get_company_name)
-    except Exception as e:
-        print(f"❌ Error in company name conversion: {e}")
-        df_out["pg name"] = ""
-        df_out["agency name"] = ""
+        # Prepare the upload request
+        upload_url = "https://dawavadmin-djb0f9atf8e6cwgx.eastus-01.azurewebsites.net/api/Gmail/upload-to-drive-url"
+        
+        with open(temp_file_path, 'rb') as pdf_file:
+            files = {
+                'email': (None, 'admin_mydaplatform@doctoralliance.com'),
+                'file': (f'{doc_id}.pdf', pdf_file, 'application/pdf')
+            }
+            
+            response = requests.post(upload_url, files=files, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                drive_url = result.get('driveFileUrl', '')
+                if drive_url:
+                    print(f"    ✅ Uploaded {doc_id}.pdf to Drive: {drive_url}")
+                    return drive_url
+                else:
+                    print(f"    ❌ No Drive URL in response for {doc_id}")
+                    return None
+            else:
+                print(f"    ❌ Drive upload failed for {doc_id}: {response.status_code} - {response.text}")
+                return None
     
-    # Add reason field based on missing data logic
-    def get_reason(row):
+    except Exception as e:
+        print(f"    ❌ Exception uploading {doc_id} to Drive: {e}")
+        return None
+    finally:
+        # Clean up temporary file
         try:
-            # Check if patient doesn't exist
-            if not row.get("PatientExist", True):
-                return "Patient Does Not Exist"
+            os.unlink(temp_file_path)
+        except:
+            pass
+
+
+
+def add_drive_links_to_failed_records(failed_records_df, excel_filename):
+    """Add Google Drive links for PDFs to the failed records sheet in the Excel file."""
+    if len(failed_records_df) == 0:
+        print("No failed records to add Drive links for")
+        return
+    
+    # Get document IDs from failed records
+    doc_ids = failed_records_df['docid'].dropna().unique()
+    print(f"📄 Uploading {len(doc_ids)} failed PDFs to Google Drive...")
+    
+    if len(doc_ids) == 0:
+        print("No valid document IDs in failed records")
+        return
+    
+    # Create a mapping of doc_id to Drive URL
+    doc_id_to_drive_url = {}
+    uploaded_count = 0
+    total_docs = len(doc_ids)
+    
+    for i, doc_id in enumerate(doc_ids, 1):
+        try:
+            print(f"  📥 Processing PDF {i}/{total_docs}: {doc_id}")
             
-            # Check for insufficient data (missing patient name or MRN)
-            missing_patient_name = pd.isna(row.get("patientName", "")) or str(row.get("patientName", "")).strip() == ""
-            missing_mrn = pd.isna(row.get("mrn", "")) or str(row.get("mrn", "")).strip() == ""
+            # Download PDF buffer
+            pdf_buffer = download_pdf_for_docid(str(doc_id))
             
-            if missing_patient_name or missing_mrn:
-                return "Insufficient Data"
-            
-            # If all checks pass, return Success (will be filtered out)
-            return "Success"
+            if pdf_buffer:
+                # Decode base64 PDF content
+                try:
+                    pdf_bytes = base64.b64decode(pdf_buffer)
+                    
+                    # Validate it's a PDF
+                    if pdf_bytes.startswith(b'%PDF-'):
+                        # Upload to Google Drive
+                        drive_url = upload_pdf_to_drive(pdf_bytes, str(doc_id))
+                        if drive_url:
+                            doc_id_to_drive_url[str(doc_id)] = drive_url
+                            uploaded_count += 1
+                        else:
+                            doc_id_to_drive_url[str(doc_id)] = "Upload failed"
+                    else:
+                        print(f"    ❌ Invalid PDF data for {doc_id}")
+                        doc_id_to_drive_url[str(doc_id)] = "Invalid PDF data"
+                except Exception as e:
+                    print(f"    ❌ Error processing PDF data for {doc_id}: {e}")
+                    doc_id_to_drive_url[str(doc_id)] = f"Processing error: {str(e)}"
+            else:
+                print(f"    ❌ Could not download PDF for {doc_id}")
+                doc_id_to_drive_url[str(doc_id)] = "Download failed"
+                
         except Exception as e:
-            print(f"❌ Error in get_reason function: {e}")
-            return "Error in Processing"
+            print(f"    ❌ Exception processing {doc_id}: {e}")
+            doc_id_to_drive_url[str(doc_id)] = f"Exception: {str(e)}"
+            continue
     
-    df_out["reason"] = df.apply(get_reason, axis=1)
+    # Add Drive URL column to the failed records DataFrame
+    failed_records_df['PDF_Drive_Link'] = failed_records_df['docid'].astype(str).map(doc_id_to_drive_url)
     
-    # Filter for failed/skipped records only (exclude successful ones)
-    df_out = df_out[df_out["reason"] != "Success"]
+    # Update the Excel file by reading existing sheets and updating the failed records sheet
+    try:
+        # Read existing sheets
+        successful_sheet = pd.read_excel(excel_filename, sheet_name='Successful_Records')
+        
+        # Write back to Excel with updated failed records sheet
+        with pd.ExcelWriter(excel_filename, engine='openpyxl') as writer:
+            successful_sheet.to_excel(writer, sheet_name='Successful_Records', index=False)
+            failed_records_df.to_excel(writer, sheet_name='Failed_Records', index=False)
+        
+        print(f"📊 Drive upload summary:")
+        print(f"   📄 Total PDFs processed: {total_docs}")
+        print(f"   ✅ Successfully uploaded: {uploaded_count}")
+        print(f"   ❌ Failed uploads: {total_docs - uploaded_count}")
+        print(f"   📁 Updated Excel file: {excel_filename}")
+        print(f"   🔗 Drive links added to 'PDF_Drive_Link' column in Failed_Records sheet")
+        
+    except Exception as e:
+        print(f"❌ Error updating Excel file with Drive links: {e}")
+        # Fallback: save just the failed records with Drive links
+        failed_records_df.to_excel(excel_filename.replace('.xlsx', '_failed_with_drive_links.xlsx'), index=False)
+        print(f"📁 Saved failed records with Drive links to: {excel_filename.replace('.xlsx', '_failed_with_drive_links.xlsx')}")
+
+
+
+def fix_failed_records_with_document_names(final_excel_path, company_key, start_date, end_date):
+    """Fix failed records by adding document names and re-uploading."""
+    print(f"🔧 Fixing failed records with document names from: {final_excel_path}")
     
-    print(f"Found {len(df_out)} failed/skipped records with issues out of {len(df)} total failed/skipped records")
-    
-    # Check if we have any records with issues
-    if len(df_out) == 0:
-        print("❌ No failed/skipped records with issues found.")
+    if not os.path.exists(final_excel_path):
+        print(f"❌ Final Excel file not found: {final_excel_path}")
         return None
     
-    # Group by PG company only
-    grouped = df_out.groupby("pg name")
+    # Read the final Excel file
+    df = pd.read_excel(final_excel_path)
+    print(f"Processing {len(df)} total records...")
     
-    print(f"🏢 Found {len(grouped)} unique PG companies:")
-    for pg_name, group in grouped:
-        print(f"   - {pg_name}: {len(group)} failed records")
+    # Get failed records
+    failed_records = df[
+        ~((df['PATIENTUPLOAD_STATUS'] == 'TRUE') & 
+          (df['ORDERUPLOAD_STATUS'] == 'TRUE'))
+    ].copy()
     
-    # Create filename with PG company name and date range
-    # Get the most common PG company name (primary company for this run)
-    pg_company_names = df_out["pg name"].value_counts()
-    if len(pg_company_names) > 0 and pg_company_names.index[0] != "":
-        primary_pg_name = pg_company_names.index[0]
-        # Clean the PG name for filename
-        clean_pg_name = clean_company_name(primary_pg_name)
-        # Format dates (MM-DD-YYYY)
-        start_date_formatted = start_date.replace("/", "-")
-        end_date_formatted = end_date.replace("/", "-")
-        output_filename = f"{clean_pg_name}_{start_date_formatted}_{end_date_formatted}.xlsx"
-    else:
-        # Fallback if no PG company found
-        output_filename = f"Failed_Records_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
+    print(f"❌ Found {len(failed_records)} failed records to fix...")
     
-    with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
-        for pg_name, group in grouped:
-            # Clean the PG name for sheet name
-            clean_pg_name = clean_company_name(pg_name)
+    if len(failed_records) == 0:
+        print("✅ No failed records to fix!")
+        return None
+    
+    # Get document names for failed records
+    print(f"📄 Getting document names for {len(failed_records)} failed records...")
+    
+    fixed_count = 0
+    for idx, row in failed_records.iterrows():
+        doc_id = row.get('Document ID')
+        if pd.notna(doc_id):
+            print(f"  🔍 Getting document info for {doc_id}...")
             
-            # Create sheet name (Excel has 31 character limit for sheet names)
-            sheet_name = clean_pg_name
-            if len(sheet_name) > 31:
-                sheet_name = sheet_name[:31]
+            # Get document information
+            doc_info = get_document_info(str(doc_id))
             
-            # Save to Excel sheet
-            group.to_excel(writer, sheet_name=sheet_name, index=False)
-            
-            print(f"✅ Added sheet: {sheet_name} ({len(group)} records)")
+            if doc_info.get('success') and doc_info.get('document_name'):
+                # Update the document name in the DataFrame
+                df.loc[idx, 'DocumentName'] = doc_info['document_name']
+                print(f"    ✅ Added document name: {doc_info['document_name']}")
+                fixed_count += 1
+            else:
+                print(f"    ❌ Could not get document name for {doc_id}")
     
-    print(f"\n📁 Created failed records file: {output_filename}")
-    print(f"📋 Total sheets: {len(grouped)}")
-    print(f"Total failed records: {len(df_out)}")
+    print(f"📊 Document name fix summary:")
+    print(f"   📄 Total failed records: {len(failed_records)}")
+    print(f"   ✅ Fixed with document names: {fixed_count}")
+    print(f"   ❌ Could not fix: {len(failed_records) - fixed_count}")
     
-    return output_filename
+    # Save the fixed Excel file
+    fixed_filename = final_excel_path.replace('.xlsx', '_FIXED.xlsx')
+    df.to_excel(fixed_filename, index=False)
+    print(f"📁 Saved fixed file: {fixed_filename}")
+    
+    return fixed_filename
+
+
 
 def process_single_company(company_key, start_date, end_date):
     """Process a single company with the given date range."""
@@ -319,6 +650,17 @@ def process_single_company(company_key, start_date, end_date):
     if not latest_npi_excel:
         print(f"❌ No NPI output found from selenium_extractor.py for {company['name']}, skipping.")
         return False
+    
+    # Check if the NPI file has any actual data (not just headers)
+    try:
+        df_npi_check = pd.read_excel(latest_npi_excel)
+        if len(df_npi_check) <= 1:  # Only header row or empty
+            print(f"⚠️  No documents found for {company['name']} in the specified date range, skipping to next company.")
+            return False
+    except Exception as e:
+        print(f"❌ Error reading NPI file for {company['name']}: {e}")
+        return False
+    
     print(f"✅ Found latest NPI file: {latest_npi_excel}")
     
     # Step 3: Run pipeline_main.py
@@ -329,6 +671,16 @@ def process_single_company(company_key, start_date, end_date):
     pdf_output_excel = "doctoralliance_orders_accuracy_focused.xlsx"
     if not os.path.exists(pdf_output_excel):
         print(f"❌ Enhanced PDF extractor output not found for {company['name']}, skipping.")
+        return False
+    
+    # Check if the PDF output file has any actual data
+    try:
+        df_pdf_check = pd.read_excel(pdf_output_excel)
+        if len(df_pdf_check) <= 1:  # Only header row or empty
+            print(f"⚠️  No PDF data extracted for {company['name']}, skipping to next company.")
+            return False
+    except Exception as e:
+        print(f"❌ Error reading PDF output file for {company['name']}: {e}")
         return False
     
     # Step 5: Merge/join both Excels into a final combined output
@@ -377,9 +729,8 @@ def process_single_company(company_key, start_date, end_date):
     if os.path.exists(supremesheet_output):
         print(f"\n🎉 Supreme sheet is ready for {company['name']}: {supremesheet_output}")
         
-        # Step 8: Create failed records Excel file
-        print(f"\nStep 5: Creating failed records report for {company['name']}...")
-        failed_records_output = create_failed_records_excel(supremesheet_output, company_key, start_date, end_date)
+        # Step 8: Skip old failed records creation - will be done after upload processing
+        print(f"\nStep 5: Skipping old failed records creation for {company['name']}...")
         
         # Step 9: Run Upload_Patients_Orders.py on the supreme Excel output
         print(f"\nStep 6: Uploading Patients and Orders for {company['name']}...")
@@ -436,6 +787,8 @@ def process_single_company(company_key, start_date, end_date):
         print(f"\n❌ supremesheet.py did not produce {supremesheet_output} for {company['name']}, check logs.")
         return False
 
+
+
 if __name__ == "__main__":
     # Import config functions
     from config import (
@@ -464,190 +817,119 @@ if __name__ == "__main__":
         print(f"🔄 Processing {len(companies_to_process)} companies...")
         successful_companies = []
         
-        for company_key in companies_to_process:
+        for i, company_key in enumerate(companies_to_process, 1):
+            print(f"\n{'='*60}")
+            print(f"🏢 Processing Company {i}/{len(companies_to_process)}: {company_key}")
+            print(f"{'='*60}")
+            
             try:
                 success = process_single_company(company_key, start_date, end_date)
                 if success:
                     successful_companies.append(company_key)
+                    print(f"✅ Successfully processed: {company_key}")
+                else:
+                    print(f"⚠️  Skipped or failed: {company_key} (no documents found or processing failed)")
                     
-                    # Send only the final upload file (with patient and order upload)
-                    final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
-                    if os.path.exists(final_upload_file):
-                        print(f"\n📧 Sending final upload file: {final_upload_file}")
-                        run_script("SendMail.py", [final_upload_file])
-                        print(f"✅ Final upload file sent: {final_upload_file}")
+                # New workflow: Create and send successful and failed Excel files
+                final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
+                if os.path.exists(final_upload_file):
+                    print(f"\n📊 Creating success/failed Excel files for {company_key}...")
+                    
+                    # First, try to fix failed records with document names
+                    print(f"\n🔧 Attempting to fix failed records with document names...")
+                    fixed_file = fix_failed_records_with_document_names(
+                        final_upload_file, company_key, start_date, end_date
+                    )
+                    
+                    # Use fixed file if available, otherwise use original
+                    excel_to_process = fixed_file if fixed_file and os.path.exists(fixed_file) else final_upload_file
+                    
+                    # Create combined Excel file with successful and failed sheets
+                    combined_file, _, _ = create_success_failed_excels(
+                        excel_to_process, company_key, start_date, end_date
+                    )
+                    
+                    # Send combined Excel file if it exists
+                    if combined_file and os.path.exists(combined_file):
+                        print(f"\n📧 Sending combined processing report: {combined_file}")
+                        run_script("SendMail.py", [combined_file])
+                        print(f"✅ Combined processing report sent: {combined_file}")
                     else:
-                        print(f"⚠️  Final upload file not found: {final_upload_file}")
+                        print(f"⚠️  No processing report to send for {company_key}")
                     
-                    # Generate and send failed records report
-                    print(f"\nGenerating failed records report for {company_key}...")
-                    try:
-                        # Update excel.py to use the correct input file
-                        import subprocess
-                        import tempfile
-                        
-                        # Create a temporary script to run excel.py with the correct input file
-                        temp_script = f"""
-import sys
-sys.path.append('.')
-import excel
-# Update the input file in excel.py
-excel.input_file = "{final_upload_file}"
-# Run the main logic
-exec(open('excel.py').read())
-"""
-                        
-                        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                            f.write(temp_script)
-                            temp_script_path = f.name
-                        
-                        # Run the temporary script
-                        result = subprocess.run([sys.executable, temp_script_path], capture_output=True, text=True)
-                        
-                        if result.returncode == 0:
-                            # Find the generated failed records file
-                            failed_records_files = glob.glob("failed_records_by_pg_*.xlsx")
-                            if failed_records_files:
-                                latest_failed_records = max(failed_records_files, key=os.path.getmtime)
-                                print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
-                                run_script("SendMail.py", [latest_failed_records])
-                                print(f"✅ Failed records report sent for {company_key}")
-                            else:
-                                print(f"⚠️  No failed records file generated for {company_key}")
-                        else:
-                            print(f"❌ Error generating failed records for {company_key}: {result.stderr}")
-                        
-                        # Clean up temporary file
-                        os.unlink(temp_script_path)
-                        
-                    except Exception as e:
-                        print(f"❌ Error in failed records generation for {company_key}: {e}")
-                    
-                    # Also send failed records Excel if it exists (legacy files)
-                    # Look for company-specific failed records files
-                    company_failed_patterns = [
-                        f"*{company_key}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
-                        f"*{company_key.replace('_', '')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
-                        f"*{company_key.replace('_', ' ')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
-                    ]
-                    
-                    failed_records_files = []
-                    for pattern in company_failed_patterns:
-                        failed_records_files.extend(glob.glob(pattern))
-                    
-                    if failed_records_files:
-                        latest_failed_records = max(failed_records_files, key=os.path.getmtime)
-                        print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
-                        run_script("SendMail.py", [latest_failed_records])
-                        print(f"✅ Failed records report sent for {company_key}")
-                    else:
-                        print(f"⚠️  No failed records file found for {company_key}")
+                else:
+                    print(f"❌ Final upload file not found: {final_upload_file}")
+                    print(f"   Cannot create success/failed Excel files")
                         
             except Exception as e:
                 print(f"❌ Error processing {company_key}: {e}")
         
         print(f"\n✅ Processing complete! Successfully processed {len(successful_companies)} out of {len(companies_to_process)} companies.")
+        
+        # Show detailed summary
+        skipped_companies = [company for company in companies_to_process if company not in successful_companies]
+        
         if successful_companies:
-            print(f"Successful companies: {', '.join(successful_companies)}")
+            print(f"✅ Successful companies: {', '.join(successful_companies)}")
+        
+        if skipped_companies:
+            print(f"⚠️  Skipped companies (no documents found): {', '.join(skipped_companies)}")
+        
+        print(f"📊 Summary: {len(successful_companies)} processed, {len(skipped_companies)} skipped")
             
-            # Send summary email for all companies
-            print(f"\n📧 Sending summary email for all processed companies...")
-            try:
-                # Create a summary of all successful companies
-                summary_file = f"processing_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-                with open(summary_file, 'w') as f:
-                    f.write(f"Processing Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-                    f.write(f"Date Range: {start_date} to {end_date}\n")
-                    f.write(f"Successfully processed: {len(successful_companies)} out of {len(companies_to_process)} companies\n")
-                    f.write(f"Successful companies: {', '.join(successful_companies)}\n")
-                    f.write(f"Failed companies: {', '.join(set(companies_to_process) - set(successful_companies))}\n")
-                
-                # Send summary email
-                run_script("SendMail.py", [summary_file])
-                print(f"✅ Summary email sent")
-            except Exception as e:
-                print(f"❌ Error sending summary email: {e}")
+        # Send summary email for all companies
+        print(f"\n📧 Sending summary email for all processed companies...")
+        try:
+            # Create a summary of all successful companies
+            summary_file = f"processing_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            with open(summary_file, 'w') as f:
+                f.write(f"Processing Summary - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                f.write(f"Date Range: {start_date} to {end_date}\n")
+                f.write(f"Successfully processed: {len(successful_companies)} out of {len(companies_to_process)} companies\n")
+                f.write(f"Successful companies: {', '.join(successful_companies)}\n")
+                f.write(f"Failed companies: {', '.join(set(companies_to_process) - set(successful_companies))}\n")
+            
+            # Send summary email
+            run_script("SendMail.py", [summary_file])
+            print(f"✅ Summary email sent")
+        except Exception as e:
+            print(f"❌ Error sending summary email: {e}")
     else:
         # Single company processing
         company_key = companies_to_process[0]
         success = process_single_company(company_key, start_date, end_date)
         
         if success:
-            # Send only the final upload file (with patient and order upload)
+            # New workflow: Create and send successful and failed Excel files
             final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
             if os.path.exists(final_upload_file):
-                print(f"\n📧 Sending final upload file: {final_upload_file}")
-                run_script("SendMail.py", [final_upload_file])
-                print(f"✅ Final upload file sent: {final_upload_file}")
-            else:
-                print(f"⚠️  Final upload file not found: {final_upload_file}")
-            
-            # Generate and send failed records report
-            print(f"\nGenerating failed records report for {company_key}...")
-            try:
-                # Update excel.py to use the correct input file
-                import subprocess
-                import tempfile
+                print(f"\n📊 Creating success/failed Excel files for {company_key}...")
                 
-                # Create a temporary script to run excel.py with the correct input file
-                temp_script = f"""
-import sys
-sys.path.append('.')
-import excel
-# Update the input file in excel.py
-excel.input_file = "{final_upload_file}"
-# Run the main logic
-exec(open('excel.py').read())
-"""
+                # First, try to fix failed records with document names
+                print(f"\n🔧 Attempting to fix failed records with document names...")
+                fixed_file = fix_failed_records_with_document_names(
+                    final_upload_file, company_key, start_date, end_date
+                )
                 
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                    f.write(temp_script)
-                    temp_script_path = f.name
+                # Use fixed file if available, otherwise use original
+                excel_to_process = fixed_file if fixed_file and os.path.exists(fixed_file) else final_upload_file
                 
-                # Run the temporary script
-                result = subprocess.run([sys.executable, temp_script_path], capture_output=True, text=True)
+                # Create combined Excel file with successful and failed sheets
+                combined_file, _, _ = create_success_failed_excels(
+                    excel_to_process, company_key, start_date, end_date
+                )
                 
-                if result.returncode == 0:
-                    # Find the generated failed records file
-                    failed_records_files = glob.glob("failed_records_by_pg_*.xlsx")
-                    if failed_records_files:
-                        latest_failed_records = max(failed_records_files, key=os.path.getmtime)
-                        print(f"\n📧 Sending failed records report for {company_key}: {latest_failed_records}")
-                        run_script("SendMail.py", [latest_failed_records])
-                        print(f"✅ Failed records report sent for {company_key}")
-                    else:
-                        print(f"⚠️  No failed records file generated for {company_key}")
+                # Send combined Excel file if it exists
+                if combined_file and os.path.exists(combined_file):
+                    print(f"\n📧 Sending combined processing report: {combined_file}")
+                    run_script("SendMail.py", [combined_file])
+                    print(f"✅ Combined processing report sent: {combined_file}")
                 else:
-                    print(f"❌ Error generating failed records for {company_key}: {result.stderr}")
-                
-                # Clean up temporary file
-                os.unlink(temp_script_path)
-                
-            except Exception as e:
-                print(f"❌ Error in failed records generation for {company_key}: {e}")
-            
-            # Also send failed records Excel if it exists (legacy files)
-            # Look for company-specific failed records files
-            company_failed_patterns = [
-                f"*{company_key}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
-                f"*{company_key.replace('_', '')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
-                f"*{company_key.replace('_', ' ')}*_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx"
-            ]
-            
-            failed_records_files = []
-            for pattern in company_failed_patterns:
-                failed_records_files.extend(glob.glob(pattern))
-            
-            if failed_records_files:
-                latest_failed_records = max(failed_records_files, key=os.path.getmtime)
-                print(f"\n📧 Sending failed records report: {latest_failed_records}")
-                run_script("SendMail.py", [latest_failed_records])
-                print("✅ Failed records report sent!")
-            else:
-                print(f"⚠️  No failed records file found for {company_key}")
+                    print(f"⚠️  No processing report to send for {company_key}")
             
             print("\n✅ All steps finished. Check your mail for the reports!")
         else:
-            print("\n❌ Processing failed. Check logs for details.")
+            print(f"❌ Final upload file not found: {final_upload_file}")
+            print(f"   Cannot create success/failed Excel files")
     
     print("\n🎉 Pipeline execution complete!")

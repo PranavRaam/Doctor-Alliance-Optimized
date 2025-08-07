@@ -16,6 +16,208 @@ ORDER_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.
 ORDER_PDF_UPLOAD_API = "https://dawavadmin-djb0f9atf8e6cwgx.eastus-01.azurewebsites.net/api/OrderPdfUpload/upload"
 HEADERS = {'accept': '*/*', 'Content-Type': 'application/json'}
 
+# Global cache for company ID lookups
+COMPANY_ID_CACHE = {}
+COMPANY_IDS_CSV_DATA = None
+
+def load_company_ids_csv():
+    """Load company IDs from CSV file for fallback lookup."""
+    global COMPANY_IDS_CSV_DATA
+    
+    if COMPANY_IDS_CSV_DATA is not None:
+        return COMPANY_IDS_CSV_DATA
+    
+    try:
+        if os.path.exists('Company IDs.csv'):
+            df = pd.read_csv('Company IDs.csv')
+            # Create a mapping from company name to ID
+            company_mapping = {}
+            for _, row in df.iterrows():
+                company_name = str(row['Name']).strip()
+                company_id = str(row['ID']).strip()
+                if company_name and company_id:
+                    # Ensure company ID is in proper UUID format with hyphens
+                    formatted_id = format_uuid_for_csv(company_id)
+                    if formatted_id:
+                        company_mapping[company_name.lower()] = formatted_id
+            COMPANY_IDS_CSV_DATA = company_mapping
+            print(f"✅ Loaded {len(company_mapping)} company IDs from CSV")
+            return company_mapping
+        else:
+            print("⚠️  Company IDs.csv not found")
+            COMPANY_IDS_CSV_DATA = {}
+            return {}
+    except Exception as e:
+        print(f"❌ Error loading Company IDs.csv: {e}")
+        COMPANY_IDS_CSV_DATA = {}
+        return {}
+
+def format_uuid_for_csv(uuid_str):
+    """Format UUID string to ensure proper hyphenated format for CSV data."""
+    if pd.isna(uuid_str):
+        return None
+    
+    uuid_str = str(uuid_str).strip()
+    
+    # If already has hyphens, validate format
+    if '-' in uuid_str:
+        # Remove any extra spaces or characters, keep hyphens
+        cleaned = re.sub(r'[^A-Za-z0-9-]', '', uuid_str)
+        # Ensure proper UUID format (8-4-4-4-12)
+        parts = cleaned.split('-')
+        if len(parts) == 5:
+            return f"{parts[0]}-{parts[1]}-{parts[2]}-{parts[3]}-{parts[4]}"
+        else:
+            # If wrong number of parts, try to fix
+            cleaned = cleaned.replace('-', '')
+            if len(cleaned) == 32:
+                return f"{cleaned[:8]}-{cleaned[8:12]}-{cleaned[12:16]}-{cleaned[16:20]}-{cleaned[20:]}"
+    
+    # If no hyphens, add them
+    uuid_str = re.sub(r'[^A-Za-z0-9]', '', uuid_str)
+    if len(uuid_str) == 32:
+        return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
+    
+    return None
+
+def get_entity_api_url():
+    """Get the entity API URL for company lookup."""
+    from config import API_BASE
+    return API_BASE.replace('/document/getfile?docId.id=', '/entity/')
+
+def lookup_company_id_hybrid(company_name, pg_company_id=None):
+    """
+    Hybrid company ID lookup:
+    1. First try entity API with company name
+    2. If not found, try entity API with PG company ID
+    3. If still not found, try CSV lookup
+    """
+    global COMPANY_ID_CACHE
+    
+    # Check cache first
+    cache_key = f"{company_name}_{pg_company_id}"
+    if cache_key in COMPANY_ID_CACHE:
+        return COMPANY_ID_CACHE[cache_key]
+    
+    # For PG (Practice Group) companies, use the pg_company_id as the company_id
+    if company_name == "Restore Family Medical Clinic" and pg_company_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
+        print(f"  📋 PG Company detected: Restore Family Medical Clinic")
+        print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
+        COMPANY_ID_CACHE[cache_key] = pg_company_id
+        return pg_company_id
+    elif company_name == "TPCH Practice/ Dr. Tradewell" and pg_company_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
+        print(f"  📋 PG Company detected: TPCH Practice/ Dr. Tradewell")
+        print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
+        COMPANY_ID_CACHE[cache_key] = pg_company_id
+        return pg_company_id
+    elif company_name == "Community Health Centers, Inc Oklahoma" and pg_company_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
+        print(f"  📋 PG Company detected: Community Health Centers, Inc Oklahoma")
+        print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
+        COMPANY_ID_CACHE[cache_key] = pg_company_id
+        return pg_company_id
+    
+    company_id = None
+    
+    # Step 1: Try entity API with company name
+    if company_name:
+        company_id = lookup_company_id_via_entity_api(company_name)
+        if company_id:
+            print(f"  ✅ Found company ID via entity API (name): {company_id}")
+            COMPANY_ID_CACHE[cache_key] = company_id
+            return company_id
+    
+    # Step 2: Try entity API with PG company ID
+    if pg_company_id and not company_id:
+        company_id = lookup_company_id_via_entity_api(pg_company_id)
+        if company_id:
+            print(f"  ✅ Found company ID via entity API (PG ID): {company_id}")
+            COMPANY_ID_CACHE[cache_key] = company_id
+            return company_id
+    
+    # Step 3: Try CSV lookup
+    if not company_id:
+        company_id = lookup_company_id_via_csv(company_name)
+        if company_id:
+            print(f"  ✅ Found company ID via CSV lookup: {company_id}")
+            COMPANY_ID_CACHE[cache_key] = company_id
+            return company_id
+    
+    if not company_id:
+        print(f"  ❌ Company ID not found for: {company_name} (PG ID: {pg_company_id})")
+        COMPANY_ID_CACHE[cache_key] = None
+        return None
+    
+    return company_id
+
+def lookup_company_id_via_entity_api(search_term):
+    """Lookup company ID via entity API using the existing supremesheet approach."""
+    try:
+        from supremesheet import ENTITY_API, AUTH_HEADER, get_companyid_by_careprovider_name
+        
+        print(f"  🔍 Searching entity API for: {search_term}")
+        
+        # Use the existing function from supremesheet
+        company_id = get_companyid_by_careprovider_name(search_term)
+        
+        if company_id:
+            print(f"  ✅ Found company ID via entity API: {company_id}")
+            return company_id
+        else:
+            print(f"  ⚠️  No company found in entity API for: {search_term}")
+            return None
+        
+    except Exception as e:
+        print(f"  ❌ Entity API lookup error: {e}")
+        return None
+
+def lookup_company_id_via_csv(company_name):
+    """Lookup company ID via CSV file."""
+    if not company_name:
+        return None
+    
+    company_mapping = load_company_ids_csv()
+    if not company_mapping:
+        return None
+    
+    # Try exact match first
+    company_name_lower = company_name.lower().strip()
+    if company_name_lower in company_mapping:
+        company_id = company_mapping[company_name_lower]
+        print(f"  📋 Exact match found: '{company_name}' -> {company_id}")
+        return company_id
+    
+    # Try partial matches with better logic
+    best_match = None
+    best_score = 0
+    
+    for csv_name, csv_id in company_mapping.items():
+        # Check if any word from company_name appears in csv_name
+        company_words = company_name_lower.split()
+        csv_words = csv_name.split()
+        
+        # Count matching words
+        matches = 0
+        for word in company_words:
+            if len(word) > 2:  # Only consider words longer than 2 characters
+                for csv_word in csv_words:
+                    if word in csv_word or csv_word in word:
+                        matches += 1
+                        break
+        
+        # Calculate match score
+        if matches > 0:
+            score = matches / max(len(company_words), len(csv_words))
+            if score > best_score and score > 0.3:  # Minimum 30% match
+                best_score = score
+                best_match = (csv_name, csv_id)
+    
+    if best_match:
+        csv_name, csv_id = best_match
+        print(f"  📋 Partial match found: '{company_name}' -> '{csv_name}' (score: {best_score:.2f}) -> {csv_id}")
+        return csv_id
+    
+    return None
+
 
 def get_api_urls_for_company(company_key=None):
     """Get API URLs for a specific company."""
@@ -113,6 +315,10 @@ def clean_uuid(val):
             uuid_str = parts[0]
             return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
     
+    # If no hyphens but it's a 32-character string, add hyphens to make it a UUID
+    if len(cleaned) == 32 and cleaned.replace('-', '').isalnum():
+        return f"{cleaned[:8]}-{cleaned[8:12]}-{cleaned[12:16]}-{cleaned[16:20]}-{cleaned[20:]}"
+    
     # If not a UUID format, use regular clean_id
     return clean_id(val)
 
@@ -133,9 +339,20 @@ def clean_payload_for_json(obj):
 
 
 def split_name(full_name):
+    # Handle NaN and None values
+    if pd.isna(full_name) or full_name is None:
+        return "", "", ""
+    
+    # Convert to string if not already
     if not isinstance(full_name, str):
-        full_name = "" if pd.isna(full_name) else str(full_name)
-    parts = (full_name or '').split()
+        full_name = str(full_name)
+    
+    # Clean the name
+    full_name = full_name.strip()
+    if not full_name or full_name.lower() == 'nan':
+        return "", "", ""
+    
+    parts = full_name.split()
     if len(parts) == 0:
         return "", "", ""
     elif len(parts) == 1:
@@ -313,9 +530,75 @@ def build_patient_payload(row, company_key=None):
     
     # Handle both patientName and patient_name fields
     patient_name = row.get("patientName", "") or row.get("patient_name", "")
+    
+    # If patient name is empty, try other possible columns
+    if not patient_name or (isinstance(patient_name, str) and patient_name.strip() == "") or pd.isna(patient_name):
+        name_columns = ['patient_name', 'patientName', 'name', 'full_name', 'patient_full_name']
+        for col in name_columns:
+            if col in row and row[col] and not pd.isna(row[col]):
+                patient_name = str(row[col]).strip()
+                if patient_name and patient_name.lower() != 'nan':
+                    break
+    
     fname, mname, lname = split_name(patient_name)
     age = get_age(row.get("dob"))
     state, city, zipc = parse_address(row.get("address", ""))
+    
+    # Hybrid company ID lookup
+    excel_company_id = clean_uuid(row.get("companyId", ""))
+    excel_pg_company_id = clean_uuid(row.get("Pgcompanyid", ""))
+    
+    # Try to get company name from various possible columns
+    company_name = None
+    name_columns = ['agency name', 'company_name', 'agencyName', 'companyName', 'nameOfAgency', 'agency', 'company']
+    for col in name_columns:
+        if col in row and row[col]:
+            company_name = str(row[col]).strip()
+            if company_name and company_name.lower() != 'nan':
+                break
+    
+    # If still no company name, try to get it from the PG company ID using config
+    if not company_name or company_name.lower() == 'nan':
+        try:
+            from config import COMPANIES
+            # Try to find company by PG ID
+            for company_key, company_config in COMPANIES.items():
+                if company_config.get('pg_company_id') == authoritative_pg_id:
+                    company_name = company_config.get('name', '')
+                    print(f"  📋 Found company name from config: {company_name}")
+                    break
+        except Exception as e:
+            print(f"  ⚠️  Error getting company name from config: {e}")
+    
+    # If still no company name, use a default based on PG ID
+    if not company_name or company_name.lower() == 'nan':
+        if authoritative_pg_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
+            company_name = "Restore Family Medical Clinic"
+        elif authoritative_pg_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
+            company_name = "TPCH Practice/ Dr. Tradewell"
+        elif authoritative_pg_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
+            company_name = "Community Health Centers, Inc Oklahoma"
+        else:
+            company_name = f"Company_{authoritative_pg_id[:8]}"
+        print(f"  📋 Using default company name: {company_name}")
+    
+    # Let the hybrid lookup handle company ID resolution
+    final_company_id = None
+    
+    # Use hybrid lookup to find the correct company ID
+    if not final_company_id:  # Only if not already set by known companies
+        if excel_company_id:
+            # If we have a company ID from Excel, try to validate/enhance it
+            final_company_id = excel_company_id
+            print(f"  📋 Using Excel company ID: {final_company_id}")
+        else:
+            # Try hybrid lookup
+            final_company_id = lookup_company_id_hybrid(company_name, excel_pg_company_id or authoritative_pg_id)
+            if final_company_id:
+                print(f"  ✅ Found company ID via hybrid lookup: {final_company_id}")
+            else:
+                print(f"  ⚠️  Could not find company ID for: {company_name}")
+                remarks.append(f"Company ID not found for: {company_name}")
     
     payload = {
         "filterStatus": "",
@@ -362,7 +645,7 @@ def build_patient_payload(row, company_key=None):
         "cityStateZip": "",
         "patientAccountNo": "",
         "agencyNPI": "",
-        "nameOfAgency": "",
+        "nameOfAgency": company_name or "",
         "insuranceId": "",
         "primaryInsuranceName": "",
         "secondaryInsuranceName": "",
@@ -374,7 +657,7 @@ def build_patient_payload(row, company_key=None):
         "patientCaretakerContactNumber": "",
         "remarks": "",
         "daBackofficeID": clean_id(row.get("DABackOfficeID", "")),
-        "companyId": clean_uuid(row.get("companyId", "")),
+        "companyId": final_company_id or "",
         "pgcompanyID": authoritative_pg_id,  # Use authoritative PG ID from config
         "createdBy": "PatientScript",
         "createdOn": now_iso(),
@@ -435,9 +718,30 @@ def refill_patient_info(df):
             if clean_id(agency.get("medicalRecordNo", "")) == clean_id(mrn) or \
                (agency.get("daBackofficeID", "") and dabackid and clean_id(agency["daBackofficeID"]) == dabackid):
                 df.at[i, 'PatientExist'] = True
-                df.at[i, 'patientid'] = p.get("id", "")
-                df.at[i, 'companyId'] = clean_uuid(agency.get("companyId", ""))
-                df.at[i, 'Pgcompanyid'] = clean_uuid(agency.get("pgcompanyID", ""))
+                patient_id = p.get("id", "")
+                # Ensure patientid column can handle string values
+                if 'patientid' in df.columns and df['patientid'].dtype == 'float64':
+                    df['patientid'] = df['patientid'].astype('object')
+                df.at[i, 'patientid'] = patient_id
+                
+                # Use hybrid lookup to get the best company ID
+                agency_company_id = clean_uuid(agency.get("companyId", ""))
+                agency_pg_company_id = clean_uuid(agency.get("pgcompanyID", ""))
+                agency_name = agency.get("nameOfAgency", "")
+                
+                if agency_company_id:
+                    df.at[i, 'companyId'] = agency_company_id
+                    print(f"  ✅ Updated company ID from patient API: {agency_company_id}")
+                else:
+                    # Try hybrid lookup
+                    hybrid_company_id = lookup_company_id_hybrid(agency_name, agency_pg_company_id)
+                    if hybrid_company_id:
+                        df.at[i, 'companyId'] = hybrid_company_id
+                        print(f"  ✅ Updated company ID via hybrid lookup: {hybrid_company_id}")
+                    else:
+                        df.at[i, 'companyId'] = agency_company_id  # Keep original or empty
+                
+                df.at[i, 'Pgcompanyid'] = agency_pg_company_id
                 found = True
                 break
         if not found:
@@ -447,6 +751,9 @@ def refill_patient_info(df):
             patientid = search_patientid_by_name_dob(patients, excel_name, excel_dob)
             if patientid:
                 df.at[i, 'PatientExist'] = True
+                # Ensure patientid column can handle string values
+                if 'patientid' in df.columns and df['patientid'].dtype == 'float64':
+                    df['patientid'] = df['patientid'].astype('object')
                 df.at[i, 'patientid'] = patientid
                 # Optionally update companyId/Pgcompanyid from this patient
     return df
@@ -470,6 +777,61 @@ def build_order_payload(row, patients=None, company_key=None):
     
     # Handle both patientName and patient_name fields
     patient_name = row.get("patientName", "") or row.get("patient_name", "")
+    
+    # Hybrid company ID lookup for orders
+    excel_company_id = clean_uuid(row.get("companyId", ""))
+    excel_pg_company_id = clean_uuid(row.get("Pgcompanyid", ""))
+    
+    # Try to get company name from various possible columns
+    company_name = None
+    name_columns = ['agency name', 'company_name', 'agencyName', 'companyName', 'nameOfAgency', 'agency', 'company']
+    for col in name_columns:
+        if col in row and row[col]:
+            company_name = str(row[col]).strip()
+            if company_name and company_name.lower() != 'nan':
+                break
+    
+    # If still no company name, try to get it from the PG company ID using config
+    if not company_name or company_name.lower() == 'nan':
+        try:
+            from config import COMPANIES
+            # Try to find company by PG ID
+            for company_key, company_config in COMPANIES.items():
+                if company_config.get('pg_company_id') == authoritative_pg_id:
+                    company_name = company_config.get('name', '')
+                    print(f"  📋 Found company name from config for order: {company_name}")
+                    break
+        except Exception as e:
+            print(f"  ⚠️  Error getting company name from config for order: {e}")
+    
+    # If still no company name, use a default based on PG ID
+    if not company_name or company_name.lower() == 'nan':
+        if authoritative_pg_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
+            company_name = "Restore Family Medical Clinic"
+        elif authoritative_pg_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
+            company_name = "TPCH Practice/ Dr. Tradewell"
+        elif authoritative_pg_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
+            company_name = "Community Health Centers, Inc Oklahoma"
+        else:
+            company_name = f"Company_{authoritative_pg_id[:8]}"
+        print(f"  📋 Using default company name for order: {company_name}")
+    
+    # Let the hybrid lookup handle company ID resolution
+    final_company_id = None
+    
+    # Use hybrid lookup to find the correct company ID
+    if not final_company_id:  # Only if not already set by known companies
+        if excel_company_id:
+            # If we have a company ID from Excel, use it
+            final_company_id = excel_company_id
+            print(f"  📋 Using Excel company ID for order: {final_company_id}")
+        else:
+            # Try hybrid lookup
+            final_company_id = lookup_company_id_hybrid(company_name, excel_pg_company_id or authoritative_pg_id)
+            if final_company_id:
+                print(f"  ✅ Found company ID via hybrid lookup for order: {final_company_id}")
+            else:
+                print(f"  ⚠️  Could not find company ID for order: {company_name}")
     
     return {
         "orderNo": get_order_id_with_fallback(row),  # Uses enhanced cleaning
@@ -496,7 +858,7 @@ def build_order_payload(row, patients=None, company_key=None):
         "location": "",
         "remarks": "",
         "patientId": clean_uuid(row.get("patientid", "")),
-        "companyId": clean_uuid(row.get("companyId", "")),
+        "companyId": final_company_id or "",
         "pgCompanyId": authoritative_pg_id,  # Use authoritative PG ID from config
         "entityType": "ORDER",
         "clinicalJustification": "",
@@ -529,6 +891,17 @@ def get_document_data(doc_id):
         if not data.get("isSuccess"):
             print(f"  [DOC_API] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}")
             return None
+        
+        # Debug: Print the full response structure for the first few calls
+        if doc_id in ['9431342', '9431476', '9433593']:  # Debug first few calls
+            print(f"  [DOC_API_DEBUG] Full response for {doc_id}:")
+            print(f"  [DOC_API_DEBUG] {json.dumps(data, indent=2)}")
+            
+            # Check for documentType structure
+            if 'value' in data and 'documentType' in data['value']:
+                doc_type = data['value']['documentType']
+                print(f"  [DOC_API_DEBUG] documentType structure: {json.dumps(doc_type, indent=2)}")
+        
         return data
     except Exception as e:
         print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")

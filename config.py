@@ -80,12 +80,16 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "06/01/2025",
-    "end_date": "06/30/2025",
+    "start_date": "08/01/2025",
+    "end_date": "08/07/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
-MULTIPLE_COMPANIES = []
+MULTIPLE_COMPANIES = [
+    "triton_health_pllc",
+    "chickasaw_nation_medical_center",
+    "southeast_oklahoma_medical_clinic"
+]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
@@ -121,26 +125,31 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "triton_health_pllc_dr_sullivan", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic", "terry_draper_restore_family_medical_clinic", "tpch_practice_dr_tradewell"
+# Available company keys: "triton_health_pllc", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
 # ===========================================
 
 # Company configurations with their pg company IDs and helper IDs
-# Updated with SSM Health Bone & Joint Hospital
 COMPANIES = {
-"hawthorn": {
-    "name": "Hawthorn",
-    "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
-    "helper_id": "ihelperph7243",
-    "description": "Hawthorn - Medical services"
+"restore_family_medical_clinic": {
+    "name": "Restore Family Medical Clinic",
+    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+    "helper_id": "acooperph1020",
+    "description": "Restore Family Medical Clinic - Medical services"
 },
-"ssm_health_bone_joint": {
-    "name": "SSM Health Bone & Joint Hospital",
-    "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
-    "helper_id": "ihelperph3232",
-    "description": "SSM Health Bone & Joint Hospital - Medical services"
+"tpch_practice": {
+    "name": "TPCH Practice/ Dr. Tradewell",
+    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
+    "helper_id": "handrewph12",
+    "description": "TPCH Practice/ Dr. Tradewell - Medical services"
+},
+"community_health_centers_oklahoma": {
+    "name": "Community Health Centers, Inc Oklahoma",
+    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
+    "helper_id": "ihelperph22478",
+    "description": "Community Health Centers, Inc Oklahoma - Medical services"
 }
 }
 
@@ -148,8 +157,8 @@ COMPANIES = {
 # Default company to use
 DEFAULT_COMPANY = ""
 
-# Active company setting - change this to switch companies
-ACTIVE_COMPANY = "ssm_health_bone_joint"  # Change this for each company
+# Active company setting - change this to switch companies  
+ACTIVE_COMPANY = ""  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -282,22 +291,22 @@ def show_active_company():
 # DOCUMENT TYPE FILTERING CONFIGURATION
 # ===========================================
 
-# Document type filtering for the 3 companies in current pipeline
+# Document type filtering for the companies in current pipeline
 DOCUMENT_TYPE_FILTERS = {
-    "infectious_diseases_consultants_oklahoma_city": {
+    "triton_health_pllc": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Infectious Diseases Consultants of Oklahoma City"
+        "description": "Process all document types for Triton Health PLLC Dr. Sullivan, Cary"
     },
-    "pushmataha_family_medical_center": {
+    "chickasaw_nation_medical_center": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Pushmataha Family Medical Center"
+        "description": "Process all document types for Chickasaw Nation Medical Center"
     },
-    "crescent_infectious_diseases": {
+    "southeast_oklahoma_medical_clinic": {
         "enabled": False,
         "allowed_types": [],
-        "description": "Process all document types for Crescent Infectious Diseases"
+        "description": "Process all document types for Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
     }
 }
 

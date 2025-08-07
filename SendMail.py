@@ -154,8 +154,22 @@ if __name__ == "__main__":
     # 2. Read file (Excel or text)
     print(f"Reading file: {input_file}")
     
+    # Check if it's a ZIP file first
+    if input_file.lower().endswith('.zip'):
+        # Handle ZIP files - just send them directly without reading
+        print(f"✅ Detected ZIP file: {input_file}")
+        # For ZIP files, we'll skip the DataFrame processing and send directly
+        excel_out_path = input_file  # Use the original ZIP file
+        email_subject = "FAILED PDFS ZIP FILE"
+        
+        # Send the ZIP file directly
+        print(f"Sending ZIP file with subject: {email_subject}...")
+        send_patient_script_mail(TO_EMAILS, CC_EMAILS, excel_out_path, email_subject)
+        print("ZIP file sent successfully.")
+        sys.exit(0)  # Exit early for ZIP files
+    
     # Check if it's a text file
-    if input_file.lower().endswith('.txt'):
+    elif input_file.lower().endswith('.txt'):
         try:
             # For text files, read as text and create a simple DataFrame
             with open(input_file, 'r', encoding='utf-8') as f:
