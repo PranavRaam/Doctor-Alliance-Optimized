@@ -97,10 +97,15 @@ def load_company_mapping():
             company_data = json.load(f)
         # Create reverse mapping (company ID to company name)
         company_mapping = {v: k for k, v in company_data.items()}
+        # Merge CSV fallback (prefers json entries)
+        csv_map = load_company_ids_csv()
+        for cid, name in csv_map.items():
+            company_mapping.setdefault(cid, name)
         return company_mapping
     except FileNotFoundError:
         print("⚠️  company.json not found")
-        return {}
+        # Fallback to CSV only
+        return load_company_ids_csv()
 
 
 
@@ -133,6 +138,32 @@ def format_uuid(uuid_str):
         return f"{uuid_str[:8]}-{uuid_str[8:12]}-{uuid_str[12:16]}-{uuid_str[16:20]}-{uuid_str[20:]}"
     else:
         return uuid_str  # Return as is if not 32 characters
+
+
+
+def prefill_document_names(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure DocumentName/documentType is populated for all rows using the document API."""
+    if df is None or len(df) == 0:
+        return df
+    # Prefer to fill 'documentType' if missing/blank, also add 'DocumentName' column for traceability
+    if 'DocumentName' not in df.columns:
+        df['DocumentName'] = ""
+    for i, row in df.iterrows():
+        current_type = str(row.get('documentType', '') or '').strip()
+        current_name = str(row.get('DocumentName', '') or '').strip()
+        if current_type and current_name:
+            continue
+        doc_id = row.get('Document ID') or row.get('docId')
+        if pd.isna(doc_id) or not str(doc_id).strip():
+            continue
+        info = get_document_info(str(doc_id).strip())
+        if info.get('success') and info.get('document_name'):
+            doc_name = info['document_name']
+            if not current_type:
+                df.at[i, 'documentType'] = doc_name
+            if not current_name:
+                df.at[i, 'DocumentName'] = doc_name
+    return df
 
 
 
@@ -246,7 +277,10 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
                 return f"Invalid Company ID ({company_id})"
         
         failed_output["pg name"] = failed_records.get("Pgcompanyid", "").apply(get_pg_company_name)
-        failed_output["agency name"] = failed_records.get("companyId", "").apply(get_company_name)
+        if "nameOfAgency" in failed_records.columns:
+            failed_output["agency name"] = failed_records["nameOfAgency"].fillna("")
+        else:
+            failed_output["agency name"] = failed_records.get("companyId", "").apply(get_company_name)
         
         # Determine failure reason
         def get_failure_reason(row):
@@ -623,6 +657,28 @@ def fix_failed_records_with_document_names(final_excel_path, company_key, start_
 
 
 
+def load_company_ids_csv():
+    """Load company IDs from Company IDs.csv as a fallback mapping (ID -> Name)."""
+    mapping = {}
+    try:
+        if os.path.exists('Company IDs.csv'):
+            df = pd.read_csv('Company IDs.csv')
+            for _, row in df.iterrows():
+                cid = str(row.get('ID', '')).strip()
+                name = str(row.get('Name', '')).strip()
+                if not cid or not name:
+                    continue
+                # Normalize to hyphenated UUID if 32 chars
+                cid_nohyphen = cid.replace('-', '')
+                if len(cid_nohyphen) == 32:
+                    cid = f"{cid_nohyphen[:8]}-{cid_nohyphen[8:12]}-{cid_nohyphen[12:16]}-{cid_nohyphen[16:20]}-{cid_nohyphen[20:]}"
+                mapping[cid] = name
+    except Exception:
+        pass
+    return mapping
+
+
+
 def process_single_company(company_key, start_date, end_date):
     """Process a single company with the given date range."""
     from config import get_company_config
@@ -715,6 +771,9 @@ def process_single_company(company_key, start_date, end_date):
     after_rows = len(merged)
     print(f"✅ Removed {before_rows - after_rows} rows with existing Document IDs already present in the platform.")
     
+    # Prefill document names so downstream order creation has DocumentName
+    merged = prefill_document_names(merged)
+
     # Save company-specific combined output
     combined_excel = f"doctoralliance_combined_output_{company_key}.xlsx"
     merged.to_excel(combined_excel, index=False)

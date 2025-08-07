@@ -86,9 +86,9 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "triton_health_pllc",
-    "chickasaw_nation_medical_center",
-    "southeast_oklahoma_medical_clinic"
+    "primary_care_of_ada",
+    "anibal_avila", 
+    "doctors_2_u"
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -125,7 +125,7 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 # 4. Run: python main.py
 # 5. No command line arguments needed!
 
-# Available company keys: "triton_health_pllc", "chickasaw_nation_medical_center", "southeast_oklahoma_medical_clinic"
+# Available company keys: "primary_care_of_ada", "anibal_avila", "doctors_2_u"
 
 # ===========================================
 # COMPANY CONFIGURATIONS
@@ -133,25 +133,24 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-"restore_family_medical_clinic": {
-    "name": "Restore Family Medical Clinic",
-    "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
-    "helper_id": "acooperph1020",
-    "description": "Restore Family Medical Clinic - Medical services"
+"primary_care_ada": {
+    "name": "Primary care of Ada",
+    "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
+    "helper_id": "handrewph44",
+    "description": "Primary care of Ada - Medical services"
 },
-"tpch_practice": {
-    "name": "TPCH Practice/ Dr. Tradewell",
-    "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
-    "helper_id": "handrewph12",
-    "description": "TPCH Practice/ Dr. Tradewell - Medical services"
+"anibal_avila": {
+    "name": "Anibal Avila MA P,C",
+    "pg_company_id": "",
+    "helper_id": "handrewph8",
+    "description": "Anibal Avila MA P,C - Medical services"
 },
-"community_health_centers_oklahoma": {
-    "name": "Community Health Centers, Inc Oklahoma",
-    "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
-    "helper_id": "ihelperph22478",
-    "description": "Community Health Centers, Inc Oklahoma - Medical services"
-}
-}
+"doctors_2_u": {
+    "name": "Doctors 2 U",
+    "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
+    "helper_id": "dallianceph9213",
+    "description": "Doctors 2 U - Medical services"
+}}
 
 
 # Default company to use

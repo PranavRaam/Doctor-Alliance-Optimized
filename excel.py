@@ -133,7 +133,12 @@ df_out["mrn_number"] = df["mrn"]
 
 # Apply company name conversion
 df_out["pg name"] = df["Pgcompanyid"].apply(get_pg_company_name)
-df_out["agency name"] = df["companyId"].apply(get_company_name)
+# Prefer the agency name captured during payload building
+if "nameOfAgency" in df.columns:
+    df_out["agency name"] = df["nameOfAgency"].fillna("")
+else:
+    # Fallback to companyId -> name mapping
+    df_out["agency name"] = df["companyId"].apply(get_company_name)
 
 # Add reason field based on missing data logic
 def get_reason(row):

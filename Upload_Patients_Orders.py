@@ -100,18 +100,18 @@ def lookup_company_id_hybrid(company_name, pg_company_id=None):
         return COMPANY_ID_CACHE[cache_key]
     
     # For PG (Practice Group) companies, use the pg_company_id as the company_id
-    if company_name == "Restore Family Medical Clinic" and pg_company_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
-        print(f"  📋 PG Company detected: Restore Family Medical Clinic")
+    if company_name == "Chickasaw Nation Medical Center" and pg_company_id == "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7":
+        print(f"  📋 PG Company detected: Chickasaw Nation Medical Center")
         print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
         COMPANY_ID_CACHE[cache_key] = pg_company_id
         return pg_company_id
-    elif company_name == "TPCH Practice/ Dr. Tradewell" and pg_company_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
-        print(f"  📋 PG Company detected: TPCH Practice/ Dr. Tradewell")
+    elif company_name == "Southeast Oklahoma Medical Clinic" and pg_company_id == "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c":
+        print(f"  📋 PG Company detected: Southeast Oklahoma Medical Clinic")
         print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
         COMPANY_ID_CACHE[cache_key] = pg_company_id
         return pg_company_id
-    elif company_name == "Community Health Centers, Inc Oklahoma" and pg_company_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
-        print(f"  📋 PG Company detected: Community Health Centers, Inc Oklahoma")
+    elif company_name == "Triton Health PLLC" and pg_company_id == "d09df8cc-a549-4229-a03a-ce29fb09aea2":
+        print(f"  📋 PG Company detected: Triton Health PLLC")
         print(f"  ✅ Using PG Company ID as Company ID: {pg_company_id}")
         COMPANY_ID_CACHE[cache_key] = pg_company_id
         return pg_company_id
@@ -572,12 +572,12 @@ def build_patient_payload(row, company_key=None):
     
     # If still no company name, use a default based on PG ID
     if not company_name or company_name.lower() == 'nan':
-        if authoritative_pg_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
-            company_name = "Restore Family Medical Clinic"
-        elif authoritative_pg_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
-            company_name = "TPCH Practice/ Dr. Tradewell"
-        elif authoritative_pg_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
-            company_name = "Community Health Centers, Inc Oklahoma"
+        if authoritative_pg_id == "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7":
+            company_name = "Chickasaw Nation Medical Center"
+        elif authoritative_pg_id == "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c":
+            company_name = "Southeast Oklahoma Medical Clinic"
+        elif authoritative_pg_id == "d09df8cc-a549-4229-a03a-ce29fb09aea2":
+            company_name = "Triton Health PLLC"
         else:
             company_name = f"Company_{authoritative_pg_id[:8]}"
         print(f"  📋 Using default company name: {company_name}")
@@ -806,12 +806,12 @@ def build_order_payload(row, patients=None, company_key=None):
     
     # If still no company name, use a default based on PG ID
     if not company_name or company_name.lower() == 'nan':
-        if authoritative_pg_id == "be52e9cc-f825-4ff2-b336-508d6b9ad63b":
-            company_name = "Restore Family Medical Clinic"
-        elif authoritative_pg_id == "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa":
-            company_name = "TPCH Practice/ Dr. Tradewell"
-        elif authoritative_pg_id == "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c":
-            company_name = "Community Health Centers, Inc Oklahoma"
+        if authoritative_pg_id == "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7":
+            company_name = "Chickasaw Nation Medical Center"
+        elif authoritative_pg_id == "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c":
+            company_name = "Southeast Oklahoma Medical Clinic"
+        elif authoritative_pg_id == "d09df8cc-a549-4229-a03a-ce29fb09aea2":
+            company_name = "Triton Health PLLC"
         else:
             company_name = f"Company_{authoritative_pg_id[:8]}"
         print(f"  📋 Using default company name for order: {company_name}")
