@@ -1464,8 +1464,12 @@ def main():
             else:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks  # Already includes error if any
         else:
-            df.at[idx, 'PATIENTUPLOAD_STATUS'] = "SKIPPED"
-            df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists."
+            if row.get('PatientExist', False):
+                df.at[idx, 'PATIENTUPLOAD_STATUS'] = "TRUE"
+                df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient already exists on platform."
+            else:
+                df.at[idx, 'PATIENTUPLOAD_STATUS'] = "SKIPPED"
+                df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already created in this batch."
             debug_log("PATIENT_PASS1", f"Row={idx} Skipped patient creation")
 
     # Refill patient info and update PatientExist if found
@@ -1484,10 +1488,7 @@ def main():
     for idx, row in df.iterrows():
         debug_log("PATIENT_PASS2", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
-        if (
-            not row.get('PatientExist', False)
-            and dabackid not in created_patients
-        ):
+        if (not row.get('PatientExist', False)) and dabackid not in created_patients:
             success, remarks = create_patient(row, company_key)
             df.at[idx, 'PATIENTUPLOAD_STATUS'] = "TRUE" if success else "FALSE"
             df.at[idx, 'PATIENTUPLOAD_REMARKS'] = remarks
@@ -1497,7 +1498,11 @@ def main():
             else:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks
         else:
-            df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists."
+            if row.get('PatientExist', False):
+                df.at[idx, 'PATIENTUPLOAD_STATUS'] = "TRUE"
+                df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient already exists on platform."
+            else:
+                df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already created in this batch."
             debug_log("PATIENT_PASS2", f"Row={idx} Skipped patient creation")
 
     # Refill patient info again after second pass
