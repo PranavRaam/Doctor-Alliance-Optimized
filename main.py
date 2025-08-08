@@ -871,6 +871,22 @@ def process_single_company(company_key, start_date, end_date):
     # Prefill document names so downstream order creation has DocumentName
     merged = prefill_document_names(merged)
 
+    # Filter out excluded document types (e.g., CONVERSION)
+    try:
+        from config import should_filter_document_types, get_document_type_filter
+        if should_filter_document_types(company_key):
+            filter_cfg = get_document_type_filter(company_key)
+            excluded_types = [t.strip().upper() for t in filter_cfg.get('excluded_types', []) if isinstance(t, str)]
+            if excluded_types and 'documentType' in merged.columns:
+                before_excl = len(merged)
+                merged['__doctype_upper__'] = merged['documentType'].astype(str).str.upper()
+                mask_excl = merged['__doctype_upper__'].apply(lambda t: any(ex in t for ex in excluded_types))
+                merged = merged[~mask_excl].copy()
+                merged.drop(columns=['__doctype_upper__'], errors='ignore', inplace=True)
+                print(f"✅ Excluded {before_excl - len(merged)} rows by excluded document types: {', '.join(excluded_types)}")
+    except Exception as e:
+        print(f"⚠️  Error applying excluded document type filter: {e}")
+
     # Save company-specific combined output
     combined_excel = f"doctoralliance_combined_output_{company_key}.xlsx"
     merged.to_excel(combined_excel, index=False)

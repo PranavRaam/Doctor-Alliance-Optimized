@@ -1430,14 +1430,29 @@ def main():
     except Exception as e:
         print(f"[FILTER] Error filtering existing Document IDs: {e}")
 
+    # Exclude unwanted document types (e.g., CONVERSION) before any processing
+    try:
+        from config import should_filter_document_types, get_document_type_filter
+        if should_filter_document_types(company_key):
+            filter_cfg = get_document_type_filter(company_key)
+            excluded_types = [t.strip().upper() for t in filter_cfg.get('excluded_types', []) if isinstance(t, str)]
+            if excluded_types and 'documentType' in df.columns:
+                before_rows = len(df)
+                df['__doctype_upper__'] = df['documentType'].astype(str).str.upper()
+                mask_excl = df['__doctype_upper__'].apply(lambda t: any(ex in t for ex in excluded_types))
+                df = df[~mask_excl].copy()
+                df.drop(columns=['__doctype_upper__'], errors='ignore', inplace=True)
+                print(f"[FILTER] Excluded {before_rows - len(df)} rows by excluded document types: {', '.join(excluded_types)}")
+    except Exception as e:
+        print(f"[FILTER] Error applying excluded document type filter: {e}")
+
     created_patients = set()
-    # 1. First pass: Create patients for 485CERT and 485RECERT where PatientExist==False
+    # 1. First pass: Create patients for ALL non-excluded document types where PatientExist==False
     for idx, row in df.iterrows():
         debug_log("PATIENT_PASS1", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
         if (
             not row.get('PatientExist', False)
-            and str(row.get('documentType', '')).upper() in ["485RECERT", "485CERT"]
             and dabackid not in created_patients
         ):
             success, remarks = create_patient(row, company_key)
@@ -1450,7 +1465,7 @@ def main():
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks  # Already includes error if any
         else:
             df.at[idx, 'PATIENTUPLOAD_STATUS'] = "SKIPPED"
-            df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists or document type not eligible."
+            df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists."
             debug_log("PATIENT_PASS1", f"Row={idx} Skipped patient creation")
 
     # Refill patient info and update PatientExist if found

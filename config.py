@@ -286,26 +286,31 @@ DOCUMENT_TYPE_FILTERS = {
     "triton_health_pllc": {
         "enabled": False,
         "allowed_types": [],
+        "excluded_types": ["CONVERSION"],
         "description": "Process all document types for Triton Health PLLC Dr. Sullivan, Cary"
     },
     "chickasaw_nation_medical_center": {
         "enabled": False,
         "allowed_types": [],
+        "excluded_types": ["CONVERSION"],
         "description": "Process all document types for Chickasaw Nation Medical Center"
     },
     "southeast_oklahoma_medical_clinic": {
         "enabled": False,
         "allowed_types": [],
+        "excluded_types": ["CONVERSION"],
         "description": "Process all document types for Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
     },
     "visiting_practitioners_and_palliative": {
         "enabled": True,
         "allowed_types": ["485", "485CERT", "RECERT"],
+        "excluded_types": ["CONVERSION"],
         "description": "Focus on 485 family documents for Visiting Practitioners And Palliative Care LLC"
     },
     "anibal_avila": {
         "enabled": True,
         "allowed_types": ["485", "485CERT", "RECERT"],
+        "excluded_types": ["CONVERSION"],
         "description": "Focus on 485 family documents for Anibal Avila PG"
     }
 }
@@ -318,6 +323,7 @@ def get_document_type_filter(company_key=None):
     return DOCUMENT_TYPE_FILTERS.get(company_key, {
         "enabled": False,
         "allowed_types": [],
+        "excluded_types": [],
         "description": "No filtering configured"
     })
 
@@ -330,3 +336,8 @@ def get_allowed_document_types(company_key=None):
     """Get list of allowed document types for a company."""
     filter_config = get_document_type_filter(company_key)
     return filter_config.get("allowed_types", [])
+
+def get_excluded_document_types(company_key=None):
+    """Get list of excluded document types for a company."""
+    filter_config = get_document_type_filter(company_key)
+    return filter_config.get("excluded_types", [])
