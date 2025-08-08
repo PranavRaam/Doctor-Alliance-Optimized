@@ -1,5 +1,0 @@
-Processing Summary - 2025-08-01 23:23:42
-Date Range: 07/01/2025 to 07/26/2025
-Successfully processed: 3 out of 3 companies
-Successful companies: acohealth, carney_hospital, health_quality_primary_care
-Failed companies: 

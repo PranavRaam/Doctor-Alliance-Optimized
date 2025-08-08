@@ -5,16 +5,22 @@ from datetime import datetime
 import os
 
 def load_company_mapping():
-    """Load company mapping from company.json."""
+    """Load company mapping from Company IDs.csv (ID,Name)."""
+    mapping = {}
     try:
-        with open('company.json', 'r') as f:
-            company_data = json.load(f)
-        # Create reverse mapping (company ID to company name)
-        company_mapping = {v: k for k, v in company_data.items()}
-        return company_mapping
+        with open('Company IDs.csv', 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            # Expect headers: ID,Name
+            for row in reader:
+                cid = row.get('ID') or row.get('Id') or row.get('id')
+                name = row.get('Name') or row.get('name')
+                if cid and name:
+                    mapping[cid.strip()] = name.strip()
+        if not mapping:
+            print("WARN: Company IDs.csv loaded but no rows mapped. Check headers are ID,Name")
     except FileNotFoundError:
-        print("⚠️  company.json not found")
-        return {}
+        print("WARN: Company IDs.csv not found")
+    return mapping
 
 def load_pg_mapping():
     """Load PG mapping from pg_ids.csv."""
@@ -26,7 +32,7 @@ def load_pg_mapping():
                 pg_mapping[row['Id']] = row['Name']
         return pg_mapping
     except FileNotFoundError:
-        print("⚠️  pg_ids.csv not found")
+        print("WARN: pg_ids.csv not found")
         return {}
 
 def format_uuid(uuid_str):
@@ -89,117 +95,144 @@ def clean_company_name(name):
 company_mapping = load_company_mapping()
 pg_mapping = load_pg_mapping()
 
-# Read the Excel file - Updated for current pipeline companies
 import sys
 import os
 
-# Get the most recent supreme excel file from current directory
-supreme_files = []
-for file in os.listdir('.'):
-    if file.startswith('supreme_excel_') and file.endswith('_with_patient_and_order_upload.xlsx'):
-        supreme_files.append(file)
 
-if not supreme_files:
-    print("❌ No supreme excel files found with patient and order upload. Looking for any supreme excel files...")
-    for file in os.listdir('.'):
-        if file.startswith('supreme_excel_') and file.endswith('.xlsx'):
-            supreme_files.append(file)
+def process_file(input_file: str):
+    print(f"\nProcessing file: {input_file}")
+    df = pd.read_excel(input_file)
 
-if supreme_files:
-    # Use the most recent file
-    input_file = max(supreme_files, key=os.path.getctime)
-    print(f"📄 Using most recent file: {input_file}")
-else:
-    print("❌ No supreme excel files found. Please ensure a supreme excel file exists.")
-    sys.exit(1)
+    # Process all records and identify data quality issues (not upload outcomes)
+    print(f"Processing {len(df)} total records for data quality issues...")
 
-df = pd.read_excel(input_file)
+    if len(df) == 0:
+        print("No records found. Skipping.")
+        return
 
-# Process all records and identify data quality issues (not patient creation status)
-print(f"Processing {len(df)} total records for data quality issues...")
+    # Create output dataframe with selected columns
+    df_out = pd.DataFrame()
+    df_out["docid"] = df["Document ID"]
+    df_out["patient_name"] = df["patientName"]
+    df_out["dob"] = df["dob"]
+    df_out["dabackofficeid"] = df["DABackOfficeID"]
+    df_out["mrn_number"] = df["mrn"]
 
-# Check if we have any records to process
-if len(df) == 0:
-    print("❌ No records found. Exiting.")
-    exit()
+    # Apply company name conversion
+    df_out["pg name"] = df["Pgcompanyid"].apply(get_pg_company_name)
+    # Prefer the agency name captured during payload building
+    if "nameOfAgency" in df.columns:
+        df_out["agency name"] = df["nameOfAgency"].fillna("")
+    else:
+        # Fallback to companyId -> name mapping
+        df_out["agency name"] = df["companyId"].apply(get_company_name)
 
-# Create output dataframe with selected columns
-df_out = pd.DataFrame()
-df_out["docid"] = df["Document ID"]
-df_out["patient_name"] = df["patientName"]
-df_out["dob"] = df["dob"]
-df_out["dabackofficeid"] = df["DABackOfficeID"]
-df_out["mrn_number"] = df["mrn"]
+    # Add reason field based on missing data logic
+    def get_reason(row):
+        # Check for insufficient data (missing patient name or MRN)
+        missing_patient_name = pd.isna(row["patientName"]) or str(row["patientName"]).strip() == ""
+        missing_mrn = pd.isna(row["mrn"]) or str(row["mrn"]).strip() == ""
 
-# Apply company name conversion
-df_out["pg name"] = df["Pgcompanyid"].apply(get_pg_company_name)
-# Prefer the agency name captured during payload building
-if "nameOfAgency" in df.columns:
-    df_out["agency name"] = df["nameOfAgency"].fillna("")
-else:
-    # Fallback to companyId -> name mapping
-    df_out["agency name"] = df["companyId"].apply(get_company_name)
+        if missing_patient_name or missing_mrn:
+            return "Insufficient Data"
 
-# Add reason field based on missing data logic
-def get_reason(row):
-    # Check for insufficient data (missing patient name or MRN)
-    missing_patient_name = pd.isna(row["patientName"]) or str(row["patientName"]).strip() == ""
-    missing_mrn = pd.isna(row["mrn"]) or str(row["mrn"]).strip() == ""
-    
-    if missing_patient_name or missing_mrn:
-        return "Insufficient Data"
-    
-    # Check for missing required fields
-    missing_doc_id = pd.isna(row["Document ID"]) or str(row["Document ID"]).strip() == ""
-    missing_dabackofficeid = pd.isna(row["DABackOfficeID"]) or str(row["DABackOfficeID"]).strip() == ""
-    
-    if missing_doc_id or missing_dabackofficeid:
-        return "Missing Required Fields"
-    
-    # If all checks pass, return Success (will be filtered out)
-    return "Success"
+        # Check for missing required fields
+        missing_doc_id = pd.isna(row["Document ID"]) or str(row["Document ID"]).strip() == ""
+        missing_dabackofficeid = pd.isna(row["DABackOfficeID"]) or str(row["DABackOfficeID"]).strip() == ""
 
-df_out["reason"] = df.apply(get_reason, axis=1)
+        if missing_doc_id or missing_dabackofficeid:
+            return "Missing Required Fields"
 
-# Filter for records with issues only (exclude successful ones)
-df_out = df_out[df_out["reason"] != "Success"]
+        # If all checks pass, return Success (will be filtered out)
+        return "Success"
 
-print(f"Found {len(df_out)} records with issues out of {len(df)} total records")
+    df_out["reason"] = df.apply(get_reason, axis=1)
 
-# Check if we have any records with issues
-if len(df_out) == 0:
-    print("❌ No records with issues found. Exiting.")
-    exit()
+    # Filter for records with issues only (exclude successful ones)
+    df_out = df_out[df_out["reason"] != "Success"]
 
-# Group by PG company only
-grouped = df_out.groupby("pg name")
+    print(f"Found {len(df_out)} records with issues out of {len(df)} total records")
 
-print(f"🏢 Found {len(grouped)} unique PG companies:")
-for pg_name, group in grouped:
-    print(f"   - {pg_name}: {len(group)} records with issues")
+    if len(df_out) == 0:
+        print("No records with issues found. Skipping output.")
+        return
 
-# Create one Excel file with multiple sheets
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-output_filename = f"failed_records_by_pg_{timestamp}.xlsx"
+    # Group by PG company only
+    grouped = df_out.groupby("pg name")
 
-with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+    print(f"Found {len(grouped)} unique PG companies:")
     for pg_name, group in grouped:
-        # Clean the PG name for sheet name
-        clean_pg_name = clean_company_name(pg_name)
-        
-        # Create sheet name (Excel has 31 character limit for sheet names)
-        sheet_name = clean_pg_name
-        if len(sheet_name) > 31:
-            sheet_name = sheet_name[:31]
-        
-        # Save to Excel sheet
-        group.to_excel(writer, sheet_name=sheet_name, index=False)
-        
-        print(f"✅ Added sheet: {sheet_name} ({len(group)} records)")
+        print(f"   - {pg_name}: {len(group)} records with issues")
 
-print(f"\n📁 Created single file: {output_filename}")
-print(f"📋 Total sheets: {len(grouped)}")
-print(f"Total records with issues: {len(df_out)}")
+    # Create one Excel file with multiple sheets (include source file stem in name)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    base_stem = os.path.splitext(os.path.basename(input_file))[0]
+    safe_stem = clean_company_name(base_stem)
+    output_filename = f"failed_records_by_pg_{safe_stem}_{timestamp}.xlsx"
 
-print(f"\nData quality analysis complete!")
-print(f"Note: PatientExist=FALSE records are valid new patient creation scenarios, not failures.")
+    with pd.ExcelWriter(output_filename, engine='openpyxl') as writer:
+        for pg_name, group in grouped:
+            clean_pg_name = clean_company_name(pg_name)
+            sheet_name = clean_pg_name[:31] if len(clean_pg_name) > 31 else clean_pg_name
+            group.to_excel(writer, sheet_name=sheet_name, index=False)
+            print(f"Added sheet: {sheet_name} ({len(group)} records)")
+
+    print(f"\nCreated file: {output_filename}")
+    print(f"Total sheets: {len(grouped)}")
+    print(f"Total records with issues: {len(df_out)}")
+    print(f"\nData quality analysis complete!")
+    print(f"Note: PatientExist=FALSE records are valid new patient creation scenarios, not failures.")
+
+
+def main():
+    # If a specific file is passed, process that. If --all, process all matching. Otherwise most recent.
+    args = sys.argv[1:]
+    candidates = []
+
+    def is_match(filename: str) -> bool:
+        return (
+            filename.startswith('supreme_excel_') and (
+                filename.endswith('_with_patient_and_order_upload.xlsx') or
+                filename.endswith('_with_patient_and_order_upload_FIXED.xlsx')
+            )
+        )
+
+    if args and args[0] != '--all':
+        file_path = args[0]
+        if not os.path.exists(file_path):
+            print(f"File not found: {file_path}")
+            sys.exit(1)
+        candidates = [file_path]
+    else:
+        # collect matching files in cwd
+        for file in os.listdir('.'):
+            if is_match(file):
+                candidates.append(file)
+        if not candidates:
+            # fallback to any supreme excel if none match strict pattern
+            for file in os.listdir('.'):
+                if file.startswith('supreme_excel_') and file.endswith('.xlsx'):
+                    candidates.append(file)
+        # if not --all, reduce to most recent
+        if args != ['--all']:
+            if not candidates:
+                print("No supreme excel files found. Please ensure a supreme excel file exists.")
+                sys.exit(1)
+            most_recent = max(candidates, key=os.path.getctime)
+            print(f"Using most recent file: {most_recent}")
+            candidates = [most_recent]
+
+    if not candidates:
+        print("No candidate files found to process.")
+        sys.exit(1)
+
+    print(f"Files to process ({len(candidates)}):")
+    for c in candidates:
+        print(f"  - {c}")
+
+    for c in candidates:
+        process_file(c)
+
+
+if __name__ == '__main__':
+    main()

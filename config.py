@@ -81,13 +81,27 @@ FIELD_EXTRACTION_CONFIG = {
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
     "start_date": "08/01/2025",
-    "end_date": "08/07/2025",
+    "end_date": "08/08/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "primary_care_of_ada",
-    "anibal_avila", 
+    "ssm_health_bone_joint_hospital",
+    "clinic_central_ok_fmc",
+    "ssm_health_shawnee",
+    "community_physician_group_cpg",
+    "idc_okc",
+    "pushmataha_family_medical_center",
+    "crescent_infectious_diseases",
+    "norman_regional_ortho_central",
+    "triton_health_pllc_dr_sullivan_cary",
+    "chickasaw_nation_medical_center",
+    "southeast_oklahoma_medical_clinic_dr_helton",
+    "restore_family_medical_clinic_terry_draper",
+    "tpch_practice_dr_tradewell",
+    "community_health_centers_inc_oklahoma",
+    "primary_care_ada",
+    "anibal_avila",
     "doctors_2_u"
 ]
 
@@ -133,24 +147,109 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-"primary_care_ada": {
-    "name": "Primary care of Ada",
-    "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
-    "helper_id": "handrewph44",
-    "description": "Primary care of Ada - Medical services"
-},
-"anibal_avila": {
-    "name": "Anibal Avila MA P,C",
-    "pg_company_id": "",
-    "helper_id": "handrewph8",
-    "description": "Anibal Avila MA P,C - Medical services"
-},
-"doctors_2_u": {
-    "name": "Doctors 2 U",
-    "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
-    "helper_id": "dallianceph9213",
-    "description": "Doctors 2 U - Medical services"
-}}
+    "ssm_health_bone_joint_hospital": {
+        "name": "SSM Health Bone & Joint Hospital",
+        "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
+        "helper_id": "ihelperph3232",
+        "description": "SSM Health Bone & Joint Hospital"
+    },
+    "clinic_central_ok_fmc": {
+        "name": "The Clinic @ Central Oklahoma Family Medical Center",
+        "pg_company_id": "3642cb84-6d4f-492c-8be1-4dd388bcea19",
+        "helper_id": "dallianceph9212",
+        "description": "The Clinic @ Central Oklahoma Family Medical Center"
+    },
+    "ssm_health_shawnee": {
+        "name": "SSM Health Shawnee",
+        "pg_company_id": "ee54c7f2-a7ba-4b9a-90b0-7df96330b9f7",
+        "helper_id": "ihelperph323",
+        "description": "SSM Health Shawnee"
+    },
+    "community_physician_group_cpg": {
+        "name": "Community Physician Group-CPG Clinics",
+        "pg_company_id": "45d72b92-6c6c-4bef-84f0-a36852d5f868",
+        "helper_id": "ihelperph11201",
+        "description": "Community Physician Group-CPG Clinics"
+    },
+    "idc_okc": {
+        "name": "Infectious Diseases Consultants of Oklahoma City (IDCOKC)",
+        "pg_company_id": "198e2b2d-c22a-415d-9ebd-9656091d0308",
+        "helper_id": "ihelperph9223",
+        "description": "Infectious Diseases Consultants of Oklahoma City"
+    },
+    "pushmataha_family_medical_center": {
+        "name": "Pushmataha Family Medical Center",
+        "pg_company_id": "ecad2da6-91a7-4e26-8152-58d588eab134",
+        "helper_id": "ihelperph9221",
+        "description": "Pushmataha Family Medical Center"
+    },
+    "crescent_infectious_diseases": {
+        "name": "Crescent Infectious Diseases",
+        "pg_company_id": "f86dc96a-777c-4bdc-ae87-f147b1e5568e",
+        "helper_id": "handrewph7202",
+        "description": "Crescent Infectious Diseases"
+    },
+    "norman_regional_ortho_central": {
+        "name": "Norman Regional - Ortho Central",
+        "pg_company_id": "3c002ed5-f9b5-4d07-914a-4856c268c977",
+        "helper_id": "ihelperph22459",
+        "description": "Norman Regional - Ortho Central"
+    },
+    "triton_health_pllc_dr_sullivan_cary": {
+        "name": "Triton Health PLLC Dr. Sullivan, Cary",
+        "pg_company_id": "d09df8cc-a549-4229-a03a-ce29fb09aea2",
+        "helper_id": "handrewph19",
+        "description": "Triton Health PLLC Dr. Sullivan, Cary"
+    },
+    "chickasaw_nation_medical_center": {
+        "name": "Chickasaw Nation Medical Center",
+        "pg_company_id": "e8f2df67-c5a5-4c74-9daa-d9b41d8eb5d7",
+        "helper_id": "michaelph1",
+        "description": "Chickasaw Nation Medical Center"
+    },
+    "southeast_oklahoma_medical_clinic_dr_helton": {
+        "name": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton",
+        "pg_company_id": "108bbba4-5d5d-41d9-b1c6-0eaac5538f6c",
+        "helper_id": "handrewph14",
+        "description": "Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
+    },
+    "restore_family_medical_clinic_terry_draper": {
+        "name": "Terry Draper / Restore Family Medical clinic",
+        "pg_company_id": "be52e9cc-f825-4ff2-b336-508d6b9ad63b",
+        "helper_id": "acooperph1020",
+        "description": "Restore Family Medical clinic"
+    },
+    "tpch_practice_dr_tradewell": {
+        "name": "TPCH Practice/ Dr. Tradewell",
+        "pg_company_id": "8e53f8ea-bb0b-472f-8560-0b9b4808c0fa",
+        "helper_id": "handrewph12",
+        "description": "TPCH Practice/ Dr. Tradewell"
+    },
+    "community_health_centers_inc_oklahoma": {
+        "name": "Community Health Centers,Inc Oklahoma",
+        "pg_company_id": "69f909d4-b4c5-4d8a-8d2e-eb52d467ef3c",
+        "helper_id": "ihelperph22478",
+        "description": "Community Health Centers,Inc Oklahoma"
+    },
+    "primary_care_ada": {
+        "name": "Primary care of Ada",
+        "pg_company_id": "2aeb18f5-4461-496d-8f74-66ba6f269cd3",
+        "helper_id": "handrewph44",
+        "description": "Primary care of Ada - Medical services"
+    },
+    "anibal_avila": {
+        "name": "Anibal Avila MA P,C",
+        "pg_company_id": "13c9e1d2-fbde-498a-b384-f530c29d0745",
+        "helper_id": "handrewph8",
+        "description": "Anibal Avila MA P,C - Medical services"
+    },
+    "doctors_2_u": {
+        "name": "Doctors 2 U",
+        "pg_company_id": "ced25ca7-8e1e-401b-b8fe-d181f688ac90",
+        "helper_id": "dallianceph9213",
+        "description": "Doctors 2 U - Medical services"
+    }
+}
 
 
 # Default company to use
