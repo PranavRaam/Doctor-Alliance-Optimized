@@ -279,19 +279,18 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
     print(f"Processing {len(df)} total records...")
     
     # Define success criteria
-    # Base success: both TRUE
-    base_success_mask = (df['PATIENTUPLOAD_STATUS'] == 'TRUE') & (df['ORDERUPLOAD_STATUS'] == 'TRUE')
-    
+    # Consider order success as primary, and patient TRUE/SKIPPED acceptable
+    order_ok = df['ORDERUPLOAD_STATUS'] == 'TRUE'
+    patient_ok = df['PATIENTUPLOAD_STATUS'].isin(['TRUE', 'SKIPPED'])
+
     # Additional success: order creation remark indicates duplicate/already exists
     remark_col = 'ORDER_CREATION_REMARK' if 'ORDER_CREATION_REMARK' in df.columns else None
     if remark_col:
         dup_markers = ['already exist', 'already exists', 'duplicate', 'exists', 'conflict']
         dup_mask = df[remark_col].astype(str).str.lower().apply(lambda x: any(m in x for m in dup_markers))
-        # Consider patient TRUE or SKIPPED acceptable when order is a duplicate
-        relaxed_patient_ok = df['PATIENTUPLOAD_STATUS'].isin(['TRUE', 'SKIPPED'])
-        success_mask = base_success_mask | (dup_mask & relaxed_patient_ok)
+        success_mask = (order_ok & patient_ok) | dup_mask
     else:
-        success_mask = base_success_mask
+        success_mask = (order_ok & patient_ok)
 
     successful_records = df[success_mask].copy()
     failed_records = df[~success_mask].copy()
