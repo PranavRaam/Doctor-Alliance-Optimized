@@ -2,6 +2,7 @@ import subprocess
 import sys
 import os
 import glob
+import shutil
 import pandas as pd
 import requests
 import json
@@ -186,6 +187,85 @@ def clean_company_name(name):
 
 
 
+def get_output_dirs(company_name, start_date, end_date):
+    """Return a dictionary of output directories for a company and date range."""
+    base = os.path.join(
+        "outputs",
+        clean_company_name(company_name),
+        f"{start_date.replace('/', '-')}__to__{end_date.replace('/', '-')}"
+    )
+    dirs = {
+        'base': base,
+        'intermediate': os.path.join(base, 'intermediate'),
+        'uploads': os.path.join(base, 'uploads'),
+        'reports': os.path.join(base, 'reports'),
+    }
+    for d in dirs.values():
+        os.makedirs(d, exist_ok=True)
+    return dirs
+
+
+def move_if_exists(src_path, dst_dir):
+    """Move a file to destination dir if it exists; return new path or None."""
+    try:
+        if src_path and os.path.exists(src_path):
+            os.makedirs(dst_dir, exist_ok=True)
+            filename = os.path.basename(src_path)
+            dst_path = os.path.join(dst_dir, filename)
+            # If destination already exists, append numeric suffix
+            if os.path.exists(dst_path):
+                name, ext = os.path.splitext(filename)
+                i = 1
+                while os.path.exists(os.path.join(dst_dir, f"{name}({i}){ext}")):
+                    i += 1
+                dst_path = os.path.join(dst_dir, f"{name}({i}){ext}")
+            shutil.move(src_path, dst_path)
+            print(f"[ORGANIZE] Moved {src_path} -> {dst_path}")
+            return dst_path
+    except Exception as e:
+        print(f"[ORGANIZE] Could not move {src_path} to {dst_dir}: {e}")
+    return None
+
+
+def organize_company_outputs(company_key, start_date, end_date):
+    """Move generated Excel files into a professional folder structure and return moved report path if available."""
+    try:
+        from config import get_company_config
+        company = get_company_config(company_key)
+        company_name = company.get('name', company_key)
+    except Exception:
+        company_name = company_key
+
+    dirs = get_output_dirs(company_name, start_date, end_date)
+
+    # Known generated files
+    candidates_intermediate = [
+        f"doctoralliance_combined_output_{company_key}.xlsx",
+        "doctoralliance_orders_accuracy_focused.xlsx",
+        f"supreme_excel_{company_key}.xlsx",
+    ]
+    candidates_uploads = [
+        f"supreme_excel_{company_key}_with_patient_upload.xlsx",
+        f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx",
+    ]
+    candidates_reports = [
+        f"supreme_excel_{company_key}_with_patient_and_order_upload_FIXED.xlsx",
+        f"{clean_company_name(company_name)}_processing_report_{start_date.replace('/', '-')}_{end_date.replace('/', '-')}.xlsx",
+    ]
+
+    moved_report_path = None
+
+    for fp in candidates_intermediate:
+        move_if_exists(fp, dirs['intermediate'])
+    for fp in candidates_uploads:
+        move_if_exists(fp, dirs['uploads'])
+    for fp in candidates_reports:
+        newp = move_if_exists(fp, dirs['reports'])
+        if newp and newp.endswith('.xlsx') and 'processing_report' in os.path.basename(newp):
+            moved_report_path = newp
+
+    return moved_report_path
+
 def create_success_failed_excels(final_excel_path, company_key, start_date, end_date):
     """Create a single Excel file with two sheets: successful and failed records from final upload file."""
     print(f"Creating success/failed Excel sheets from: {final_excel_path}")
@@ -198,17 +278,23 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
     df = pd.read_excel(final_excel_path)
     print(f"Processing {len(df)} total records...")
     
-    # Define success criteria: Both PATIENTUPLOAD_STATUS and ORDERUPLOAD_STATUS must be "TRUE"
-    successful_records = df[
-        (df['PATIENTUPLOAD_STATUS'] == 'TRUE') & 
-        (df['ORDERUPLOAD_STATUS'] == 'TRUE')
-    ].copy()
+    # Define success criteria
+    # Base success: both TRUE
+    base_success_mask = (df['PATIENTUPLOAD_STATUS'] == 'TRUE') & (df['ORDERUPLOAD_STATUS'] == 'TRUE')
     
-    # Failed records: Either upload status is not "TRUE"
-    failed_records = df[
-        ~((df['PATIENTUPLOAD_STATUS'] == 'TRUE') & 
-          (df['ORDERUPLOAD_STATUS'] == 'TRUE'))
-    ].copy()
+    # Additional success: order creation remark indicates duplicate/already exists
+    remark_col = 'ORDER_CREATION_REMARK' if 'ORDER_CREATION_REMARK' in df.columns else None
+    if remark_col:
+        dup_markers = ['already exist', 'already exists', 'duplicate', 'exists', 'conflict']
+        dup_mask = df[remark_col].astype(str).str.lower().apply(lambda x: any(m in x for m in dup_markers))
+        # Consider patient TRUE or SKIPPED acceptable when order is a duplicate
+        relaxed_patient_ok = df['PATIENTUPLOAD_STATUS'].isin(['TRUE', 'SKIPPED'])
+        success_mask = base_success_mask | (dup_mask & relaxed_patient_ok)
+    else:
+        success_mask = base_success_mask
+
+    successful_records = df[success_mask].copy()
+    failed_records = df[~success_mask].copy()
     
     print(f"✅ Successful records: {len(successful_records)}")
     print(f"❌ Failed records: {len(failed_records)}")
@@ -770,6 +856,17 @@ def process_single_company(company_key, start_date, end_date):
     merged = merged[~merged["Document ID"].astype(str).isin(existing_doc_ids)].copy()
     after_rows = len(merged)
     print(f"✅ Removed {before_rows - after_rows} rows with existing Document IDs already present in the platform.")
+
+    # Safety filter: if any rows slipped past due to type mismatch, clean both sides and re-filter
+    try:
+        before_rows_2 = len(merged)
+        cleaned_doc_ids = set(str(x).strip() for x in existing_doc_ids)
+        merged["__docid_str__"] = merged["Document ID"].astype(str).str.strip()
+        merged = merged[~merged["__docid_str__"].isin(cleaned_doc_ids)].copy()
+        merged.drop(columns=["__docid_str__"], errors='ignore', inplace=True)
+        print(f"✅ Additional safety filter removed {before_rows_2 - len(merged)} rows (post-cleaning).")
+    except Exception as e:
+        print(f"⚠️  Safety filter error (ignored): {e}")
     
     # Prefill document names so downstream order creation has DocumentName
     merged = prefill_document_names(merged)
@@ -910,9 +1007,12 @@ if __name__ == "__main__":
                     
                     # Send combined Excel file if it exists
                     if combined_file and os.path.exists(combined_file):
-                        print(f"\n📧 Sending combined processing report: {combined_file}")
-                        run_script("SendMail.py", [combined_file])
-                        print(f"✅ Combined processing report sent: {combined_file}")
+                        # Organize outputs into structured folders
+                        organized_report = organize_company_outputs(company_key, start_date, end_date)
+                        report_to_send = organized_report if organized_report and os.path.exists(organized_report) else combined_file
+                        print(f"\n📧 Sending combined processing report: {report_to_send}")
+                        run_script("SendMail.py", [report_to_send])
+                        print(f"✅ Combined processing report sent: {report_to_send}")
                     else:
                         print(f"⚠️  No processing report to send for {company_key}")
                     
@@ -980,9 +1080,12 @@ if __name__ == "__main__":
                 
                 # Send combined Excel file if it exists
                 if combined_file and os.path.exists(combined_file):
-                    print(f"\n📧 Sending combined processing report: {combined_file}")
-                    run_script("SendMail.py", [combined_file])
-                    print(f"✅ Combined processing report sent: {combined_file}")
+                    # Organize outputs into structured folders
+                    organized_report = organize_company_outputs(company_key, start_date, end_date)
+                    report_to_send = organized_report if organized_report and os.path.exists(organized_report) else combined_file
+                    print(f"\n📧 Sending combined processing report: {report_to_send}")
+                    run_script("SendMail.py", [report_to_send])
+                    print(f"✅ Combined processing report sent: {report_to_send}")
                 else:
                     print(f"⚠️  No processing report to send for {company_key}")
             

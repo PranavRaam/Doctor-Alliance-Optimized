@@ -1,5 +1,13 @@
 import pandas as pd
 import requests
+try:
+    import fitz  # PyMuPDF for PDF text extraction
+except Exception:
+    fitz = None
+try:
+    from selenium_patient_search import download_latest_485_for_patient
+except Exception:
+    download_latest_485_for_patient = None
 import datetime
 import json
 import re
@@ -8,6 +16,8 @@ import base64
 import tempfile
 import os
 import sys
+import time
+from typing import Tuple, Optional
 
 # These will be set dynamically based on company configuration
 PATIENT_CREATE_API = "https://dawavorderpatient-hqe2apddbje9gte0.eastus-01.azurewebsites.net/api/Patient/create"
@@ -19,6 +29,64 @@ HEADERS = {'accept': '*/*', 'Content-Type': 'application/json'}
 # Global cache for company ID lookups
 COMPANY_ID_CACHE = {}
 COMPANY_IDS_CSV_DATA = None
+
+# Ultra-verbose debugging toggle
+DEBUG_VERBOSE = True
+
+def debug_log(tag: str, message: str):
+    if DEBUG_VERBOSE:
+        try:
+            print(f"[{tag}] {message}")
+        except Exception:
+            pass
+
+
+# ============================
+# Logging: duplicate stdout/err to file
+# ============================
+class _TeeIO:
+    def __init__(self, stream, logfile_handle):
+        self._stream = stream
+        self._log = logfile_handle
+
+    def write(self, data):
+        try:
+            self._stream.write(data)
+        except Exception:
+            # Best-effort console write
+            pass
+        try:
+            self._log.write(data)
+        except Exception:
+            pass
+
+    def flush(self):
+        try:
+            self._stream.flush()
+        except Exception:
+            pass
+        try:
+            self._log.flush()
+        except Exception:
+            pass
+
+
+def setup_run_logging(company_key: Optional[str]) -> str:
+    """Create logs directory and tee stdout/stderr to a timestamped log file.
+
+    Returns the path to the log file.
+    """
+    os.makedirs("logs", exist_ok=True)
+    ts = time.strftime("%Y-%m-%d_%H-%M-%S")
+    suffix = company_key or "default"
+    logfile = os.path.join("logs", f"Upload_Patients_Orders_{suffix}_{ts}.log")
+    # Open in text mode, utf-8
+    fh = open(logfile, "w", encoding="utf-8", buffering=1)
+    # Tee
+    sys.stdout = _TeeIO(sys.__stdout__, fh)
+    sys.stderr = _TeeIO(sys.__stderr__, fh)
+    print(f"[LOG] Duplicating console output to {logfile}")
+    return logfile
 
 def load_company_ids_csv():
     """Load company IDs from CSV file for fallback lookup."""
@@ -277,6 +345,77 @@ def clean_mrn_for_upload(val):
     return cleaned
 
 
+def extract_mrn_from_text(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return ""
+    patterns = [
+        r"\bMedical\s*Record\s*No\.?\s*[:#-]?\s*([A-Za-z0-9-]{4,})",
+        r"\bMedical\s*Record\s*Number\s*[:#-]?\s*([A-Za-z0-9-]{4,})",
+        r"\bMRN\s*[:#-]?\s*([A-Za-z0-9-]{4,})",
+        r"\bMR\s*#\s*([A-Za-z0-9-]{4,})",
+        r"\bMed(?:ical)?\s*Rec(?:ord)?\s*(?:No\.|#)?\s*[:#-]?\s*([A-Za-z0-9-]{4,})",
+    ]
+    for pat in patterns:
+        m = re.search(pat, text, flags=re.IGNORECASE)
+        if m:
+            candidate = m.group(1).strip()
+            cleaned = clean_mrn_for_upload(candidate)
+            if cleaned:
+                return cleaned
+    return ""
+
+
+def extract_mrn_from_pdf(pdf_path: str) -> str:
+    if not pdf_path or not os.path.exists(pdf_path) or fitz is None:
+        return ""
+    try:
+        doc = fitz.open(pdf_path)
+        texts = []
+        for page in doc:
+            try:
+                texts.append(page.get_text("text"))
+            except Exception:
+                continue
+        doc.close()
+        return extract_mrn_from_text("\n".join(texts))
+    except Exception:
+        return ""
+
+
+def fetch_mrn_from_latest_485(patient_full_name: str) -> Tuple[str, Optional[str]]:
+    """Download latest 485 for patient and extract MRN. Returns (mrn, pdf_path)."""
+    if download_latest_485_for_patient is None:
+        return "", None
+    # Split into last, first
+    last_name, first_name = "", ""
+    if "," in (patient_full_name or ""):
+        parts = [p.strip() for p in patient_full_name.split(",", 1)]
+        last_name, rest = parts[0], parts[1] if len(parts) > 1 else ""
+        first_name = rest.split()[0] if rest else ""
+    else:
+        parts = (patient_full_name or "").split()
+        if len(parts) >= 2:
+            first_name, last_name = parts[0], parts[-1]
+        elif len(parts) == 1:
+            first_name = parts[0]
+    try:
+        ok, doc_id, pdf_path = download_latest_485_for_patient(
+            da_url="https://backoffice.doctoralliance.com",
+            da_login="rpabot",
+            da_password="Dallas@1234",
+            last_name=last_name,
+            first_name=first_name,
+            headless=True,
+            save_dir="Downloads_485",
+        )
+        if ok and pdf_path:
+            mrn = extract_mrn_from_pdf(pdf_path)
+            return mrn, pdf_path
+    except Exception:
+        pass
+    return "", None
+
+
 def clean_id(val):
     """Basic ID cleaning for non-UUID fields."""
     if pd.isna(val) or val is None:
@@ -444,6 +583,25 @@ def get_order_id_with_fallback(row):
     return ""
 
 
+def get_existing_document_ids_for_company(company_key=None):
+    """Fetch set of existing Document IDs already present on the platform for a company."""
+    try:
+        from config import get_company_api_url
+        if company_key is None:
+            from config import ACTIVE_COMPANY
+            company_key = ACTIVE_COMPANY
+        if not company_key:
+            return set()
+        url = get_company_api_url(company_key)
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        orders = resp.json()
+        return set(str(o["documentID"]).strip() for o in orders if isinstance(o, dict) and "documentID" in o and o["documentID"] is not None)
+    except Exception as e:
+        print(f"[EXISTING_DOCS] Error fetching existing Document IDs: {e}")
+        return set()
+
+
 def get_order_date_with_fallback(row):
     """Get order date with sendDate fallback"""
     orderdate = row.get("orderdate")
@@ -519,12 +677,80 @@ def build_patient_payload(row, company_key=None):
     required = ['patientName', 'dob', 'mrn', 'soc', 'cert_period_soe', 'cert_period_eoe', 'Diagnosis 1', 'companyId', 'Pgcompanyid','patient_sex']
     
     remarks = []
+    debug_log("PATIENT_PAYLOAD", f"Row keys: {list(row.keys())}")
+    debug_log("PATIENT_PAYLOAD", f"Raw row snippet: DABackOfficeID={row.get('DABackOfficeID')} docId={row.get('Document ID') or row.get('docId')} docType={row.get('documentType')} patientName={row.get('patientName') or row.get('patient_name')}")
     for r in required:
         if not row.get(r):
             remarks.append(f"{r} absent")
     
     # Clean MRN specifically
     cleaned_mrn = clean_mrn_for_upload(row.get("mrn", ""))
+    debug_log("PATIENT_PAYLOAD", f"MRN cleaned -> '{cleaned_mrn}' from '{row.get('mrn','')}'")
+    if not cleaned_mrn:
+        # MRN fallback via latest 485 PDF using our OpenAI/Ollama extractor
+        try:
+            from field_extraction import AccuracyFocusedFieldExtractor
+            from text_extraction import extract_text_from_pdf
+        except Exception:
+            AccuracyFocusedFieldExtractor = None
+            extract_text_from_pdf = None
+
+        patient_name_for_fallback = row.get("patientName", "") or row.get("patient_name", "")
+        if patient_name_for_fallback and AccuracyFocusedFieldExtractor and extract_text_from_pdf:
+            # Download latest 485
+            mrn_candidate = ""
+            ok_pdf, pdf_path = False, None
+            try:
+                ok, doc_id, path = fetch_mrn_from_latest_485(patient_name_for_fallback)
+                # fetch_mrn_from_latest_485 returns (mrn, pdf_path). If it found MRN already, use that.
+                if ok:
+                    # ok here is MRN string; adjust call site
+                    pass
+            except Exception:
+                pass
+            # If previous helper returned MRN directly, use it
+            if isinstance(ok, str) and ok and ok.strip():
+                mrn_candidate = ok.strip()
+                pdf_path = path
+            else:
+                # If not, try to ensure we have a PDF via selenium helper
+                if download_latest_485_for_patient and not pdf_path:
+                    try:
+                        last, first = "", ""
+                        if "," in patient_name_for_fallback:
+                            parts = [p.strip() for p in patient_name_for_fallback.split(",", 1)]
+                            last, rest = parts[0], parts[1] if len(parts) > 1 else ""
+                            first = rest.split()[0] if rest else ""
+                        else:
+                            parts = patient_name_for_fallback.split()
+                            if len(parts) >= 2:
+                                first, last = parts[0], parts[-1]
+                        ok_pdf, _, pdf_path = download_latest_485_for_patient(
+                            da_url="https://backoffice.doctoralliance.com",
+                            da_login="rpabot",
+                            da_password="Dallas@1234",
+                            last_name=last,
+                            first_name=first,
+                            headless=True,
+                            save_dir="Downloads_485",
+                        )
+                    except Exception:
+                        ok_pdf = False
+                # Extract text and call LLM extractor strictly for MRN
+                if pdf_path and extract_text_from_pdf and AccuracyFocusedFieldExtractor:
+                    try:
+                        text = extract_text_from_pdf(pdf_path)
+                        extractor = AccuracyFocusedFieldExtractor()
+                        result = extractor.extract_fields_multi_approach(text, doc_id="MRN_ONLY")
+                        fields = result.fields if hasattr(result, 'fields') else result
+                        mrn_candidate = fields.get("mrn") if isinstance(fields, dict) else None
+                    except Exception:
+                        mrn_candidate = ""
+
+            cleaned_from_llm = clean_mrn_for_upload(mrn_candidate)
+            if cleaned_from_llm:
+                cleaned_mrn = cleaned_from_llm
+                print(f"  🤖 MRN filled from 485 via LLM extraction ({pdf_path}): {cleaned_mrn}")
     if not cleaned_mrn:
         remarks.append("MRN invalid (must be >3 chars, alphanumeric with at least one digit)")
     
@@ -541,12 +767,16 @@ def build_patient_payload(row, company_key=None):
                     break
     
     fname, mname, lname = split_name(patient_name)
+    debug_log("PATIENT_PAYLOAD", f"Name split -> fname='{fname}' mname='{mname}' lname='{lname}'")
     age = get_age(row.get("dob"))
+    debug_log("PATIENT_PAYLOAD", f"DOB='{row.get('dob','')}' -> age='{age}'")
     state, city, zipc = parse_address(row.get("address", ""))
+    debug_log("PATIENT_PAYLOAD", f"Address parsed -> state='{state}' city='{city}' zip='{zipc}'")
     
     # Hybrid company ID lookup
     excel_company_id = clean_uuid(row.get("companyId", ""))
     excel_pg_company_id = clean_uuid(row.get("Pgcompanyid", ""))
+    debug_log("PATIENT_PAYLOAD", f"Excel IDs -> companyId='{excel_company_id}' pgCompanyId='{excel_pg_company_id}'")
     
     # Try to get company name from various possible columns
     company_name = None
@@ -645,7 +875,7 @@ def build_patient_payload(row, company_key=None):
         "cityStateZip": "",
         "patientAccountNo": "",
         "agencyNPI": "",
-        "nameOfAgency": company_name or "",
+        "nameOfAgency": "",
         "insuranceId": "",
         "primaryInsuranceName": "",
         "secondaryInsuranceName": "",
@@ -676,6 +906,9 @@ def build_patient_payload(row, company_key=None):
             "sixthDiagnosis": row.get("Diagnosis 6", "")
         }]
     }
+    debug_log("PATIENT_PAYLOAD", "Omitting createdOn/updatedOn and nameOfAgency per backend rules")
+    debug_log("PATIENT_PAYLOAD", f"Final payload keys: {list(payload.keys())}")
+    debug_log("PATIENT_PAYLOAD", f"Episode -> SOC='{payload['episodeDiagnoses'][0]['startOfCare']}' SOE='{payload['episodeDiagnoses'][0]['startOfEpisode']}' EOE='{payload['episodeDiagnoses'][0]['endOfEpisode']}' Dx1='{payload['episodeDiagnoses'][0]['firstDiagnosis']}'")
     
     return payload, remarks
 
@@ -683,6 +916,24 @@ def build_patient_payload(row, company_key=None):
 def create_patient(row, company_key=None):
     payload, remarks = build_patient_payload(row, company_key)
     payload = clean_payload_for_json(payload)
+    # Human-friendly summary of what is being sent
+    try:
+        epi = (payload.get("episodeDiagnoses") or [{}])[0]
+        print("[PATIENT_SUMMARY]",
+              f"Name={payload.get('patientFName','')} {payload.get('patientLName','')}",
+              f"DOB={payload.get('dob','')}",
+              f"MRN={payload.get('medicalRecordNo','')}",
+              f"Sex={payload.get('patientSex','')}",
+              f"SOC={payload.get('startOfCare','')}",
+              f"SOE={epi.get('startOfEpisode','')}",
+              f"EOE={epi.get('endOfEpisode','')}",
+              f"Dx1={epi.get('firstDiagnosis','')}",
+              f"CompanyId={payload.get('companyId','')}",
+              f"PG={payload.get('pgcompanyID','')}")
+        if remarks:
+            print(f"[PATIENT_SUMMARY] Pre-check remarks: {'; '.join(remarks)}")
+    except Exception:
+        pass
     print("\n--- [PATIENT_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
     try:
@@ -695,6 +946,21 @@ def create_patient(row, company_key=None):
         except Exception:
             resp_json = {}
         success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and resp_json.get("id"))
+        if success:
+            created_id = resp_json.get("id") if isinstance(resp_json, dict) else None
+            print(f"[PATIENT_CREATE] ✅ Success id={created_id} for DABackOfficeID={row.get('DABackOfficeID','')} DocID={row.get('Document ID') or row.get('docId')}")
+        else:
+            # Extract detailed error if available
+            detailed = None
+            if isinstance(resp_json, dict):
+                detailed = (
+                    resp_json.get("errors")
+                    or resp_json.get("message")
+                    or resp_json.get("title")
+                )
+            detail_text = json.dumps(detailed) if detailed else resp.text
+            remarks.append(f"Patient API failure: HTTP {resp.status_code} - {detail_text}")
+            print(f"[PATIENT_CREATE] ❌ Failure: HTTP {resp.status_code} - {detail_text}")
         return success, "; ".join(remarks)
     except Exception as e:
         print(f"  [PATIENT_CREATE] Error: {e}")
@@ -770,10 +1036,14 @@ def build_order_payload(row, patients=None, company_key=None):
     company = get_company_config(company_key)
     authoritative_pg_id = company['pg_company_id']
     # Get episode data with patient lookup if needed
+    debug_log("ORDER_PAYLOAD", f"Row keys: {list(row.keys())}")
+    debug_log("ORDER_PAYLOAD", f"Raw row snippet: DocID={row.get('Document ID') or row.get('docId')} docType={row.get('documentType')} PatientExist={row.get('PatientExist')} patientName={row.get('patientName') or row.get('patient_name')}")
+
     if patients:
         soc, soe, eoe = get_episode_data_from_patient(row, patients)
     else:
         soc, soe, eoe = row.get("soc", ""), row.get("cert_period_soe", ""), row.get("cert_period_eoe", "")
+    debug_log("ORDER_PAYLOAD", f"Episode -> SOC='{soc}' SOE='{soe}' EOE='{eoe}'")
     
     # Handle both patientName and patient_name fields
     patient_name = row.get("patientName", "") or row.get("patient_name", "")
@@ -781,6 +1051,7 @@ def build_order_payload(row, patients=None, company_key=None):
     # Hybrid company ID lookup for orders
     excel_company_id = clean_uuid(row.get("companyId", ""))
     excel_pg_company_id = clean_uuid(row.get("Pgcompanyid", ""))
+    debug_log("ORDER_PAYLOAD", f"Excel IDs -> companyId='{excel_company_id}' pgCompanyId='{excel_pg_company_id}'")
     
     # Try to get company name from various possible columns
     company_name = None
@@ -833,7 +1104,7 @@ def build_order_payload(row, patients=None, company_key=None):
             else:
                 print(f"  ⚠️  Could not find company ID for order: {company_name}")
     
-    return {
+    order_payload = {
         "orderNo": get_order_id_with_fallback(row),  # Uses enhanced cleaning
         "orderDate": get_order_date_with_fallback(row),
         "startOfCare": soc,
@@ -878,6 +1149,8 @@ def build_order_payload(row, patients=None, company_key=None):
         "cpoUpdatedBy": "",
         "cpoUpdatedOn": now_iso()
     }
+    debug_log("ORDER_PAYLOAD", f"OrderNo='{order_payload['orderNo']}' OrderDate='{order_payload['orderDate']}' DocType='{order_payload['documentName']}' MRN='{order_payload['mrn']}' PatientId='{order_payload['patientId']}' CompanyId='{order_payload['companyId']}' PG='{order_payload['pgCompanyId']}'")
+    return order_payload
 
 
 def get_document_data(doc_id):
@@ -910,6 +1183,22 @@ def get_document_data(doc_id):
 def create_order(row, patients=None, company_key=None):
     payload = build_order_payload(row, patients, company_key)
     payload = clean_payload_for_json(payload)
+    # Human-friendly summary of what is being sent
+    try:
+        print("[ORDER_SUMMARY]",
+              f"DocID={payload.get('documentID','')}",
+              f"OrderNo={payload.get('orderNo','')}",
+              f"OrderDate={payload.get('orderDate','')}",
+              f"PatientName={payload.get('patientName','')}",
+              f"MRN={payload.get('mrn','')}",
+              f"SOC={payload.get('startOfCare','')}",
+              f"SOE={payload.get('episodeStartDate','')}",
+              f"EOE={payload.get('episodeEndDate','')}",
+              f"DocType={payload.get('documentName','')}",
+              f"CompanyId={payload.get('companyId','')}",
+              f"PG={payload.get('pgCompanyId','')}")
+    except Exception:
+        pass
     print("\n--- [ORDER_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
     
@@ -953,12 +1242,35 @@ def create_order(row, patients=None, company_key=None):
                 print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
                 return True, f"Order created but no order GUID received for PDF upload"
         else:
-            # Simplify error extraction
-            if isinstance(resp_json, dict) and 'errors' in resp_json:
-                error_details = json.dumps(resp_json['errors'])
+            # Simplify error extraction with more context
+            if isinstance(resp_json, dict):
+                error_details = (
+                    json.dumps(resp_json.get('errors'))
+                    if resp_json.get('errors') is not None
+                    else resp_json.get('message') or resp_json.get('title') or resp.text
+                )
             else:
                 error_details = resp.text
-            return False, error_details
+
+            # If backend reports duplicate/already exists, treat as success per business rule
+            error_text = str(error_details or "")
+            duplicate_markers = [
+                "already exist",
+                "already exists",
+                "duplicate",
+                "exists",
+                "conflict",
+            ]
+            is_duplicate = (
+                resp.status_code == 409
+                or any(m in error_text.lower() for m in duplicate_markers)
+            )
+            if is_duplicate:
+                print(f"[ORDER_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}")
+                return True, "Order already exists on platform; treated as success"
+
+            print(f"[ORDER_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_details}")
+            return False, f"Order API failure: HTTP {resp.status_code} - {error_details}"
             
     except Exception as e:
         print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
@@ -1052,6 +1364,10 @@ def main():
     print(f"   Input file: {input_file}")
     print(f"   Company key: {company_key}")
     print(f"   Arguments received: {sys.argv}")
+
+    # Setup logging after parsing args so suffix is accurate
+    log_path = setup_run_logging(company_key)
+    print(f"   Log file: {log_path}")
     
     # Check if input file exists, if not try to find it with company key
     if not os.path.exists(input_file) and company_key:
@@ -1081,6 +1397,15 @@ def main():
     
     # Set company API URLs based on active company or provided company key
     set_company_api_urls(company_key)
+    # Echo resolved company configuration for traceability
+    try:
+        from config import get_company_config
+        cc = get_company_config(company_key) if company_key else get_company_config()
+        print(f"[CONFIG] Active company name: {cc.get('name')}")
+        print(f"[CONFIG] PG Company ID: {cc.get('pg_company_id')}")
+        print(f"[CONFIG] Helper ID: {cc.get('helper_id')}")
+    except Exception as e:
+        print(f"[CONFIG] Warning: could not load company config details: {e}")
     
     df = pd.read_excel(input_file)
     if 'PATIENTUPLOAD_STATUS' not in df.columns:
@@ -1092,9 +1417,23 @@ def main():
     if 'ORDER_CREATION_REMARK' not in df.columns:
         df['ORDER_CREATION_REMARK'] = ""
 
+    # Filter out rows whose Document ID already exists on WAV (platform)
+    try:
+        existing_ids = get_existing_document_ids_for_company(company_key)
+        if len(df) > 0 and existing_ids:
+            doc_col = 'Document ID' if 'Document ID' in df.columns else ('docId' if 'docId' in df.columns else None)
+            if doc_col:
+                before = len(df)
+                df = df[~df[doc_col].astype(str).isin(existing_ids)].copy()
+                removed = before - len(df)
+                print(f"[FILTER] Removed {removed} rows already on platform before upload.")
+    except Exception as e:
+        print(f"[FILTER] Error filtering existing Document IDs: {e}")
+
     created_patients = set()
     # 1. First pass: Create patients for 485CERT and 485RECERT where PatientExist==False
     for idx, row in df.iterrows():
+        debug_log("PATIENT_PASS1", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
         if (
             not row.get('PatientExist', False)
@@ -1112,6 +1451,7 @@ def main():
         else:
             df.at[idx, 'PATIENTUPLOAD_STATUS'] = "SKIPPED"
             df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists or document type not eligible."
+            debug_log("PATIENT_PASS1", f"Row={idx} Skipped patient creation")
 
     # Refill patient info and update PatientExist if found
     df = refill_patient_info(df)
@@ -1127,6 +1467,7 @@ def main():
         if str(row.get('documentType', '')).upper() == "OTHER_SIGNABLE":
             df.at[idx, 'documentType'] = "OTHER"
     for idx, row in df.iterrows():
+        debug_log("PATIENT_PASS2", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
         if (
             not row.get('PatientExist', False)
@@ -1142,6 +1483,7 @@ def main():
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks
         else:
             df.at[idx, 'PATIENT_CREATION_REMARK'] = "Patient creation skipped: already exists."
+            debug_log("PATIENT_PASS2", f"Row={idx} Skipped patient creation")
 
     # Refill patient info again after second pass
     df = refill_patient_info(df)
@@ -1162,6 +1504,7 @@ def main():
     df['PDF_UPLOAD_REMARK'] = ""
     
     for idx, row in df.iterrows():
+        debug_log("ORDER", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')}")
         if row.get('PatientExist', False):
             try:
                 order_success, order_remark = create_order(row, patients_for_orders, company_key)
@@ -1192,6 +1535,7 @@ def main():
             df.at[idx, 'ORDER_CREATION_REMARK'] = "Order skipped: Patient does not exist for this row."
             df.at[idx, 'PDF_UPLOAD_STATUS'] = "SKIPPED"
             df.at[idx, 'PDF_UPLOAD_REMARK'] = "PDF upload skipped: Patient does not exist for this row."
+            print(f"[ORDER][Row {idx}] Skipped order creation (PatientExist=False)")
 
     output_file_final = input_file.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
     df.to_excel(output_file_final, index=False)

@@ -85,11 +85,7 @@ DATE_RANGE = {
 }
 
 # Multiple companies to process (leave empty list for single company)
-MULTIPLE_COMPANIES = [
-    "housecall_md",
-    "los_cerros",
-    "paragon_medical_associates"
-]
+MULTIPLE_COMPANIES = []
 
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
@@ -133,23 +129,17 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "housecall_md": {
-        "name": "HousecallMD",
-        "pg_company_id": "bc3a6a28-dd03-4cf3-95ba-2c5976619818",
-        "helper_id": "dhelperph621",
-        "description": "HousecallMD - Medical services"
+    "visiting_practitioners_and_palliative": {
+        "name": "Visiting Practitioners And Palliative Care LLC",
+        "pg_company_id": "f6464e98-d46b-4c7a-a9bc-254c02aa8e1c",
+        "helper_id": "ihelperph1242",
+        "description": "Visiting Practitioners and Palliative Care"
     },
-    "los_cerros": {
-        "name": "Los Cerros",
-        "pg_company_id": "9d8d2765-0b51-489b-868c-a217b4283c62",
-        "helper_id": "ihelperph7221",
-        "description": "Los Cerros - Medical services"
-    },
-    "paragon_medical_associates": {
-        "name": "Paragon Medical Associates",
-        "pg_company_id": "84e35202-3422-4de4-b5cb-efe5461b1312",
-        "helper_id": "ihelperph4215",
-        "description": "Paragon Medical Associates - Medical services"
+    "anibal_avila": {
+        "name": "Anibal Avila MA P,C",
+        "pg_company_id": "13c9e1d2-fbde-498a-b384-f530c29d0745",
+        "helper_id": "handrewph8",
+        "description": "Anibal Avila Practice Group"
     }
 }
 
@@ -158,7 +148,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies  
-ACTIVE_COMPANY = ""  # Change this for each company
+ACTIVE_COMPANY = "anibal_avila"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -307,6 +297,16 @@ DOCUMENT_TYPE_FILTERS = {
         "enabled": False,
         "allowed_types": [],
         "description": "Process all document types for Southeast Oklahoma Medical Clinic - Dr. Richard Helton"
+    },
+    "visiting_practitioners_and_palliative": {
+        "enabled": True,
+        "allowed_types": ["485", "485CERT", "RECERT"],
+        "description": "Focus on 485 family documents for Visiting Practitioners And Palliative Care LLC"
+    },
+    "anibal_avila": {
+        "enabled": True,
+        "allowed_types": ["485", "485CERT", "RECERT"],
+        "description": "Focus on 485 family documents for Anibal Avila PG"
     }
 }
 

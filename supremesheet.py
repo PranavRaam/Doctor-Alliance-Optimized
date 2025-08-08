@@ -136,6 +136,31 @@ def set_patient_api_for_company(company_key=None):
         print(f"  [ERROR] Failed to set PATIENT_API for company {company_key}: {e}")
         return
 
+
+def get_existing_document_ids_for_company(company_key=None):
+    """Fetch set of existing Document IDs already present on the platform for a company."""
+    try:
+        from config import get_company_api_url, get_companies_to_process
+
+        if company_key is None:
+            companies = get_companies_to_process()
+            if companies:
+                company_key = companies[0]
+
+        if not company_key:
+            return set()
+
+        url = get_company_api_url(company_key)
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        orders = resp.json()
+        existing_doc_ids = set(str(o["documentID"]).strip() for o in orders if isinstance(o, dict) and "documentID" in o and o["documentID"] is not None)
+        print(f"  [EXISTING_DOCS] Found {len(existing_doc_ids)} existing Document IDs on platform for '{company_key}'.")
+        return existing_doc_ids
+    except Exception as e:
+        print(f"  [EXISTING_DOCS] Error fetching existing Document IDs: {e}")
+        return set()
+
 def get_all_patients():
     if PATIENT_API is None:
         print("  [ERROR] PATIENT_API not set. Please set company configuration first.")
@@ -509,6 +534,22 @@ async def main_async():
     
     df = pd.read_excel(excel_file)
     print(f"[INFO] Loaded {len(df)} rows from {excel_file}")
+
+    # Filter out rows whose Document ID already exists on WAV (platform)
+    try:
+        from config import get_companies_to_process
+        companies = get_companies_to_process()
+        active_company_key = companies[0] if companies else None
+        existing_ids = get_existing_document_ids_for_company(active_company_key)
+        if len(df) > 0 and existing_ids:
+            doc_col = 'Document ID' if 'Document ID' in df.columns else ('docId' if 'docId' in df.columns else None)
+            if doc_col:
+                before = len(df)
+                df = df[~df[doc_col].astype(str).isin(existing_ids)].copy()
+                removed = before - len(df)
+                print(f"[FILTER] Removed {removed} rows already on platform before building supreme sheet.")
+    except Exception as e:
+        print(f"[FILTER] Error filtering existing Document IDs: {e}")
     
     # Start performance monitoring
     start_monitoring(len(df))
@@ -607,6 +648,22 @@ def main_sync():
     
     df = pd.read_excel(excel_file)
     print(f"[INFO] Loaded {len(df)} rows from {excel_file}")
+
+    # Filter out rows whose Document ID already exists on WAV (platform)
+    try:
+        from config import get_companies_to_process
+        companies = get_companies_to_process()
+        active_company_key = companies[0] if companies else None
+        existing_ids = get_existing_document_ids_for_company(active_company_key)
+        if len(df) > 0 and existing_ids:
+            doc_col = 'Document ID' if 'Document ID' in df.columns else ('docId' if 'docId' in df.columns else None)
+            if doc_col:
+                before = len(df)
+                df = df[~df[doc_col].astype(str).isin(existing_ids)].copy()
+                removed = before - len(df)
+                print(f"[FILTER] Removed {removed} rows already on platform before building supreme sheet.")
+    except Exception as e:
+        print(f"[FILTER] Error filtering existing Document IDs: {e}")
     
     # Start performance monitoring
     start_monitoring(len(df))
