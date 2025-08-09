@@ -116,6 +116,9 @@ doctoralliance_orders_accuracy_focused.xlsx
 doctoralliance_combined_output.xlsx
 PATIENT_SCRIPT_output.xlsx
 
+# Output directories
+outputs/
+
 # ===========================================
 # NEW SCRIPTS CREATED DURING DEVELOPMENT
 # ===========================================

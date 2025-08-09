@@ -81,30 +81,11 @@ FIELD_EXTRACTION_CONFIG = {
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
     "start_date": "08/01/2025",
-    "end_date": "08/09/2025",
+    "end_date": "08/08/2025",
 }
 
 # Multiple companies to process (leave empty list for single company)
-MULTIPLE_COMPANIES = [
-    "ssm_health_bone_and_joint_hospital",
-    "the_clinic_central_oklahoma_family_medical_center",
-    "ssm_health_shawnee",
-    "community_physician_group_cpg_clinics",
-    "infectious_diseases_consultants_of_okc_idcokc",
-    "pushmataha_family_medical_center",
-    "crescent_infectious_diseases",
-    "norman_regional_ortho_central",
-    "triton_health_pllc",
-    "internal_medicine_associates_okc",
-    "chickasaw_nation_medical_center",
-    "southeast_oklahoma_medical_clinic_dr_richard_helton",
-    "terry_draper_restore_family_medical_clinic",
-    "tpch_practice_dr_tradewell",
-    "community_health_centers_inc_oklahoma",
-    "primary_care_of_ada",
-    "anibal_avila",
-    "doctors_2_u"
-]
+MULTIPLE_COMPANIES = []
 
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
@@ -148,6 +129,12 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
+    "grace_at_home": {
+        "name": "Grace At Home",
+        "pg_company_id": "2f607136-c370-422c-890d-f01bdaba6bae",
+        "helper_id": "pcookph324",
+        "description": "Grace At Home"
+    },
     "ssm_health_bone_and_joint_hospital": {
         "name": "SSM Health Bone & Joint Hospital",
         "pg_company_id": "3bc728e7-6839-4807-92ed-bb6c712020de",
@@ -263,7 +250,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies  
-ACTIVE_COMPANY = ""  # Change this for each company
+ACTIVE_COMPANY = "grace_at_home"  # Change this for each company
 
 # Function to get companies to process
 def get_companies_to_process():
@@ -397,15 +384,38 @@ def show_active_company():
 # ===========================================
 
 # Document type filtering for the companies in current pipeline
+# Defaults: enable filtering and exclude CONVERSION for all companies
 DOCUMENT_TYPE_FILTERS = {
-    # Default approach: process all types except conversations
     key: {
         "enabled": True,
         "allowed_types": [],
-        "excluded_types": ["CONVERSATION"],
-        "description": f"Process all non-conversation document types for {COMPANIES[key]['name']}"
+        "excluded_types": ["CONVERSION"],
+        "description": f"Default document type filter for {COMPANIES[key]['name']}"
     }
     for key in COMPANIES.keys()
+}
+
+# Overrides for specific companies (if present)
+DOCUMENT_TYPE_FILTERS["visiting_practitioners_and_palliative"] = {
+    "enabled": True,
+    "allowed_types": ["485", "485CERT", "RECERT"],
+    "excluded_types": ["CONVERSION"],
+    "description": "Focus on 485 family documents for Visiting Practitioners And Palliative Care LLC"
+}
+
+DOCUMENT_TYPE_FILTERS["anibal_avila"] = {
+    "enabled": True,
+    "allowed_types": ["485", "485CERT", "RECERT"],
+    "excluded_types": ["CONVERSION"],
+    "description": "Focus on 485 family documents for Anibal Avila PG"
+}
+
+# Grace At Home: focus on 485 family documents as well
+DOCUMENT_TYPE_FILTERS["grace_at_home"] = {
+    "enabled": True,
+    "allowed_types": [],
+    "excluded_types": ["CONVERSATION"],
+    "description": "Focus on 485 family documents for Grace At Home"
 }
 
 def get_document_type_filter(company_key=None):

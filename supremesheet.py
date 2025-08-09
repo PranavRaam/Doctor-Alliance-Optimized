@@ -604,12 +604,25 @@ async def main_async():
     stop_monitoring()
     
     out_df = pd.DataFrame(output_rows)
+    # Ensure output directory exists when a path is provided
+    try:
+        out_dir = os.path.dirname(output_file)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+    except Exception:
+        pass
     out_df.to_excel(output_file, index=False)
     
-    # Print PDF statistics
+    # Print PDF statistics (safe for empty/missing columns)
     total_records = len(out_df)
-    pdf_available = len(out_df[out_df['PDF_Available'] == 'YES'])
-    pdf_upload_ready = len(out_df[out_df['PDF_Upload_Ready'] == 'YES'])
+    if 'PDF_Available' in out_df.columns:
+        pdf_available = int((out_df['PDF_Available'] == 'YES').sum())
+    else:
+        pdf_available = 0
+    if 'PDF_Upload_Ready' in out_df.columns:
+        pdf_upload_ready = int((out_df['PDF_Upload_Ready'] == 'YES').sum())
+    else:
+        pdf_upload_ready = 0
     
     print(f"\n✅ Supreme Excel written: {output_file}")
     print(f"📊 PDF Statistics:")
@@ -697,12 +710,25 @@ def main_sync():
     stop_monitoring()
     
     out_df = pd.DataFrame(output_rows)
+    # Ensure output directory exists when a path is provided
+    try:
+        out_dir = os.path.dirname(output_file)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+    except Exception:
+        pass
     out_df.to_excel(output_file, index=False)
     
-    # Print PDF statistics
+    # Print PDF statistics (safe for empty/missing columns)
     total_records = len(out_df)
-    pdf_available = len(out_df[out_df['PDF_Available'] == 'YES'])
-    pdf_upload_ready = len(out_df[out_df['PDF_Upload_Ready'] == 'YES'])
+    if 'PDF_Available' in out_df.columns:
+        pdf_available = int((out_df['PDF_Available'] == 'YES').sum())
+    else:
+        pdf_available = 0
+    if 'PDF_Upload_Ready' in out_df.columns:
+        pdf_upload_ready = int((out_df['PDF_Upload_Ready'] == 'YES').sum())
+    else:
+        pdf_upload_ready = 0
     
     print(f"\n✅ Supreme Excel written: {output_file}")
     print(f"📊 PDF Statistics:")

@@ -238,7 +238,7 @@ def organize_company_outputs(company_key, start_date, end_date):
 
     dirs = get_output_dirs(company_name, start_date, end_date)
 
-    # Known generated files
+    # Known generated files (filenames only; may exist in cwd or already in dirs)
     candidates_intermediate = [
         f"doctoralliance_combined_output_{company_key}.xlsx",
         "doctoralliance_orders_accuracy_focused.xlsx",
@@ -255,12 +255,36 @@ def organize_company_outputs(company_key, start_date, end_date):
 
     moved_report_path = None
 
-    for fp in candidates_intermediate:
-        move_if_exists(fp, dirs['intermediate'])
-    for fp in candidates_uploads:
-        move_if_exists(fp, dirs['uploads'])
-    for fp in candidates_reports:
-        newp = move_if_exists(fp, dirs['reports'])
+    # Try moving from both cwd and the intermediate dir (when already written there)
+    for fname in candidates_intermediate:
+        # If file exists in cwd, move it
+        moved = move_if_exists(fname, dirs['intermediate'])
+        # If not in cwd, ensure it's in the right place already
+        src_in_intermediate = os.path.join(dirs['intermediate'], fname)
+        if not moved and os.path.exists(src_in_intermediate):
+            print(f"[ORGANIZE] Found already in intermediate: {src_in_intermediate}")
+    for fname in candidates_uploads:
+        # Prefer moving from cwd
+        moved = move_if_exists(fname, dirs['uploads'])
+        if not moved:
+            # Try moving from intermediate -> uploads
+            src_in_intermediate = os.path.join(dirs['intermediate'], fname)
+            if os.path.exists(src_in_intermediate):
+                try:
+                    moved = move_if_exists(src_in_intermediate, dirs['uploads'])
+                except Exception as e:
+                    print(f"[ORGANIZE] Could not move from intermediate: {src_in_intermediate} -> {dirs['uploads']}: {e}")
+    for fname in candidates_reports:
+        # Prefer moving from cwd
+        newp = move_if_exists(fname, dirs['reports'])
+        if not newp:
+            # Try moving from intermediate -> reports
+            src_in_intermediate = os.path.join(dirs['intermediate'], fname)
+            if os.path.exists(src_in_intermediate):
+                try:
+                    newp = move_if_exists(src_in_intermediate, dirs['reports'])
+                except Exception as e:
+                    print(f"[ORGANIZE] Could not move report from intermediate: {src_in_intermediate} -> {dirs['reports']}: {e}")
         if newp and newp.endswith('.xlsx') and 'processing_report' in os.path.basename(newp):
             moved_report_path = newp
 
@@ -774,6 +798,9 @@ def process_single_company(company_key, start_date, end_date):
     print(f"   Helper ID: {company['helper_id']}")
     print(f"📅 Date Range: {start_date} to {end_date}")
     
+    # Prepare structured output directories up-front and write files directly there
+    dirs = get_output_dirs(company['name'], start_date, end_date)
+    
     # Set the active company for this processing
     from config import set_active_company
     set_active_company(company_key)
@@ -886,14 +913,15 @@ def process_single_company(company_key, start_date, end_date):
     except Exception as e:
         print(f"⚠️  Error applying excluded document type filter: {e}")
 
-    # Save company-specific combined output
-    combined_excel = f"doctoralliance_combined_output_{company_key}.xlsx"
+    # Save company-specific combined output (write directly to structured folder)
+    combined_excel = os.path.join(dirs['intermediate'], f"doctoralliance_combined_output_{company_key}.xlsx")
     merged.to_excel(combined_excel, index=False)
     print(f"\n✅ Combined output written to {combined_excel}")
     
     # Step 6: Run supremesheet.py using the combined Excel as input
     print(f"\nStep 4: Running supremesheet.py on combined output for {company['name']}...")
-    supremesheet_output = f"supreme_excel_{company_key}.xlsx"
+    # Write supreme output directly to structured folder
+    supremesheet_output = os.path.join(dirs['intermediate'], f"supreme_excel_{company_key}.xlsx")
     run_script("supremesheet.py", [combined_excel, supremesheet_output])
     
     # Step 7: Confirm output
@@ -942,9 +970,13 @@ def process_single_company(company_key, start_date, end_date):
                 print(f"\n⚠️  Upload_Patients_Orders.py completed but some files are missing for {company['name']}.")
                 print(f"   Expected: {len(expected_files)} files, Created: {len(created_files)} files")
                 print(f"   Available files in directory:")
-                for f in os.listdir('.'):
-                    if f.endswith('.xlsx') and company_key in f:
-                        print(f"     - {f}")
+                out_dir = os.path.dirname(supremesheet_output) or '.'
+                try:
+                    for f in os.listdir(out_dir):
+                        if f.endswith('.xlsx') and company_key in f:
+                            print(f"     - {os.path.join(out_dir, f)}")
+                except Exception as e:
+                    print(f"   [LIST] Could not list directory {out_dir}: {e}")
             
         except Exception as e:
             print(f"\n❌ Error in Upload_Patients_Orders.py for {company['name']}: {e}")
@@ -953,9 +985,19 @@ def process_single_company(company_key, start_date, end_date):
             return False
         
         print(f"\n✅ Upload_Patients_Orders.py finished for {company['name']}.")
+        # Organize outputs even on success
+        try:
+            organize_company_outputs(company_key, start_date, end_date)
+        except Exception as e:
+            print(f"[ORGANIZE] Skipped organizing outputs for {company_key}: {e}")
         return True
     else:
         print(f"\n❌ supremesheet.py did not produce {supremesheet_output} for {company['name']}, check logs.")
+        # Attempt to organize any partial outputs for traceability
+        try:
+            organize_company_outputs(company_key, start_date, end_date)
+        except Exception as e:
+            print(f"[ORGANIZE] Skipped organizing outputs for {company_key}: {e}")
         return False
 
 
@@ -1025,8 +1067,17 @@ if __name__ == "__main__":
                         # Organize outputs into structured folders
                         organized_report = organize_company_outputs(company_key, start_date, end_date)
                         report_to_send = organized_report if organized_report and os.path.exists(organized_report) else combined_file
-                        print(f"\n📧 Sending combined processing report: {report_to_send}")
-                        run_script("SendMail.py", [report_to_send])
+                        # Also attach the main supreme sheet (non-upload) from outputs/intermediate
+                        try:
+                            from config import get_company_config
+                            company = get_company_config(company_key)
+                            dirs = get_output_dirs(company['name'], start_date, end_date)
+                            supreme_main = os.path.join(dirs['intermediate'], f"supreme_excel_{company_key}.xlsx")
+                        except Exception:
+                            supreme_main = None
+                        attachments = [p for p in [report_to_send, supreme_main] if p and os.path.exists(p)]
+                        print(f"\n📧 Sending deliverables: {', '.join(attachments)}")
+                        run_script("SendMail.py", attachments)
                         print(f"✅ Combined processing report sent: {report_to_send}")
                     else:
                         print(f"⚠️  No processing report to send for {company_key}")
@@ -1098,8 +1149,17 @@ if __name__ == "__main__":
                     # Organize outputs into structured folders
                     organized_report = organize_company_outputs(company_key, start_date, end_date)
                     report_to_send = organized_report if organized_report and os.path.exists(organized_report) else combined_file
-                    print(f"\n📧 Sending combined processing report: {report_to_send}")
-                    run_script("SendMail.py", [report_to_send])
+                    # Also attach the main supreme sheet (non-upload) from outputs/intermediate
+                    try:
+                        from config import get_company_config
+                        company = get_company_config(company_key)
+                        dirs = get_output_dirs(company['name'], start_date, end_date)
+                        supreme_main = os.path.join(dirs['intermediate'], f"supreme_excel_{company_key}.xlsx")
+                    except Exception:
+                        supreme_main = None
+                    attachments = [p for p in [report_to_send, supreme_main] if p and os.path.exists(p)]
+                    print(f"\n📧 Sending deliverables: {', '.join(attachments)}")
+                    run_script("SendMail.py", attachments)
                     print(f"✅ Combined processing report sent: {report_to_send}")
                 else:
                     print(f"⚠️  No processing report to send for {company_key}")

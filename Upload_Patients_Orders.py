@@ -319,14 +319,27 @@ def clean_order_number_for_upload(val):
     """Clean order number for upload - modular function."""
     if not val:
         return ""
-    
+
+    # Normalize and detect placeholder/non-values
+    s = str(val).strip().lower()
+    placeholders = {
+        "notavailable", "not available", "notfound", "not found",
+        "na", "n/a", "none", "nil", "unknown", "--", "-"
+    }
+    if s in placeholders:
+        return ""
+
     # Remove all non-alphanumeric characters
     cleaned = re.sub(r'[^A-Za-z0-9]', '', str(val))
-    
+
     # Ensure minimum length
     if len(cleaned) < 3:
         return ""
-    
+
+    # Require at least one digit to avoid placeholders like NotAvailable
+    if not any(c.isdigit() for c in cleaned):
+        return ""
+
     return cleaned
 
 
@@ -516,19 +529,40 @@ def search_patientid_by_name_dob(patients, name, dob):
         name = "" if pd.isna(name) else str(name)
     if not isinstance(dob, str):
         dob = "" if pd.isna(dob) else str(dob)
-    name = name.strip().lower()
-    dob = dob.strip()
+    name = name.strip()
+    dob = str(dob).strip()
+
+    def normalize_name_parts(n: str) -> tuple[str, str]:
+        # Accept "LAST, FIRST" or "FIRST LAST [MIDDLE...]"
+        n = (n or "").strip()
+        # Remove extra spaces and punctuation except comma
+        n_clean = re.sub(r"[^A-Za-z0-9,\s]", "", n)
+        if "," in n_clean:
+            # Format: LAST, FIRST [M]
+            parts = [p.strip() for p in n_clean.split(",")]
+            last = parts[0] if len(parts) > 0 else ""
+            first = parts[1].split()[0] if len(parts) > 1 else ""
+        else:
+            # Format: FIRST [MIDDLE ...] LAST
+            tokens = [t for t in n_clean.split() if t]
+            if len(tokens) == 0:
+                first, last = "", ""
+            elif len(tokens) == 1:
+                first, last = tokens[0], ""
+            else:
+                first, last = tokens[0], tokens[-1]
+        return first.lower(), last.lower()
+
+    name_first, name_last = normalize_name_parts(name)
+
     for p in patients:
-        p_name = ""
-        p_dob = ""
         agency = p.get("agencyInfo", {})
-        # Try to construct the patient name as in your Excel
-        # (you may need to adjust key names)
-        pfname = agency.get("patientFName", "") or ""
-        plname = agency.get("patientLName", "") or ""
-        p_name = f"{pfname} {plname}".strip().lower()
-        p_dob = agency.get("dob", "") or ""
-        if p_name == name and p_dob == dob:
+        pfname = (agency.get("patientFName", "") or "").strip()
+        plname = (agency.get("patientLName", "") or "").strip()
+        p_dob = (agency.get("dob", "") or "").strip()
+        p_first, p_last = normalize_name_parts(f"{pfname} {plname}")
+        # Match if first+last equal (case-insensitive) AND dob equal
+        if p_first == name_first and p_last == name_last and p_dob == dob:
             return p.get("id", "")
     return ""
 
@@ -937,31 +971,105 @@ def create_patient(row, company_key=None):
     print("\n--- [PATIENT_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
     try:
-        resp = requests.post(PATIENT_CREATE_API, headers=HEADERS, json=payload, timeout=20)
-        print("--- [PATIENT_CREATE] Response ---")
-        print(f"Status: {resp.status_code}\n{resp.text}\n")
-        # Use original working success criteria for patient creation - check for 'id' in response
-        try:
-            resp_json = resp.json()
-        except Exception:
-            resp_json = {}
-        success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and resp_json.get("id"))
-        if success:
-            created_id = resp_json.get("id") if isinstance(resp_json, dict) else None
-            print(f"[PATIENT_CREATE] ✅ Success id={created_id} for DABackOfficeID={row.get('DABackOfficeID','')} DocID={row.get('Document ID') or row.get('docId')}")
-        else:
-            # Extract detailed error if available
-            detailed = None
-            if isinstance(resp_json, dict):
-                detailed = (
-                    resp_json.get("errors")
-                    or resp_json.get("message")
-                    or resp_json.get("title")
+        # Retry on transient errors
+        last_exc = None
+        for attempt in range(1, 4):
+            try:
+                resp = requests.post(PATIENT_CREATE_API, headers=HEADERS, json=payload, timeout=20)
+                print("--- [PATIENT_CREATE] Response ---")
+                print(f"Status: {resp.status_code}\n{resp.text}\n")
+                # Use original working success criteria for patient creation - check for 'id' in response
+                try:
+                    resp_json = resp.json()
+                except Exception:
+                    resp_json = {}
+                success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and resp_json.get("id"))
+                if success:
+                    created_id = resp_json.get("id") if isinstance(resp_json, dict) else None
+                    print(f"[PATIENT_CREATE] ✅ Success id={created_id} for DABackOfficeID={row.get('DABackOfficeID','')} DocID={row.get('Document ID') or row.get('docId')}")
+                    return True, "; ".join(remarks)
+
+                # Extract detailed error if available
+                detailed = None
+                if isinstance(resp_json, dict):
+                    detailed = (
+                        resp_json.get("errors")
+                        or resp_json.get("message")
+                        or resp_json.get("title")
+                    )
+                detail_text = json.dumps(detailed) if detailed else resp.text
+
+                # Treat duplicate/already exists as success per business rule
+                error_text = str(detail_text or "")
+                duplicate_markers = [
+                    "already exist",
+                    "already exists",
+                    "duplicate",
+                    "exists",
+                    "conflict",
+                ]
+                is_duplicate = (
+                    resp.status_code == 409
+                    or any(m in error_text.lower() for m in duplicate_markers)
                 )
-            detail_text = json.dumps(detailed) if detailed else resp.text
-            remarks.append(f"Patient API failure: HTTP {resp.status_code} - {detail_text}")
-            print(f"[PATIENT_CREATE] ❌ Failure: HTTP {resp.status_code} - {detail_text}")
-        return success, "; ".join(remarks)
+                if is_duplicate:
+                    print(f"[PATIENT_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}")
+                    return True, "Patient already exists on platform; treated as success"
+
+                # If 200/201 but no id, try to verify patient presence via lookup
+                if resp.status_code in (200, 201):
+                    try:
+                        patients = _download_patients_for_company()
+                        if patients:
+                            # Match by MRN/DABackOfficeID or Name+DOB
+                            mrn = clean_id(row.get('mrn', ''))
+                            dabackid = clean_id(row.get('DABackOfficeID', ''))
+                            excel_name = row.get('patientName', '') or row.get('patient_name', '')
+                            excel_dob = str(row.get('dob', '') or '').strip()
+                            verified = False
+                            for p in patients:
+                                agency = p.get('agencyInfo', {})
+                                api_mrn = clean_id(agency.get('medicalRecordNo', ''))
+                                api_dabackid = clean_id(agency.get('daBackofficeID', ''))
+                                if (api_mrn and mrn and api_mrn == mrn) or (api_dabackid and dabackid and api_dabackid == dabackid):
+                                    verified = True
+                                    break
+                            if not verified:
+                                # Fallback by name+dob
+                                first, last = _normalize_name_pair(excel_name)
+                                for p in patients:
+                                    agency = p.get('agencyInfo', {})
+                                    pfname = (agency.get('patientFName', '') or '').strip()
+                                    plname = (agency.get('patientLName', '') or '').strip()
+                                    p_dob = (agency.get('dob', '') or '').strip()
+                                    pf, pl = _normalize_name_pair(f"{pfname} {plname}")
+                                    if pf == first and pl == last and p_dob == excel_dob:
+                                        verified = True
+                                        break
+                            if verified:
+                                print("[PATIENT_CREATE] ✅ Verified patient present after creation response (missing id)")
+                                return True, "; ".join(remarks)
+                    except Exception:
+                        pass
+
+                # Retry on server errors/timeouts
+                if resp.status_code >= 500:
+                    time.sleep(min(3, attempt))
+                    continue
+
+                # Non-retriable failure
+                remarks.append(f"Patient API failure: HTTP {resp.status_code} - {error_text}")
+                print(f"[PATIENT_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_text}")
+                return False, "; ".join(remarks)
+            except Exception as e:
+                last_exc = e
+                if attempt < 3:
+                    time.sleep(min(3, attempt))
+                    continue
+                else:
+                    raise
+        # If loop exhausted
+        return False, "; ".join(remarks) + "; Exception: retry exhausted"
     except Exception as e:
         print(f"  [PATIENT_CREATE] Error: {e}")
         return False, "; ".join(remarks) + f"; Exception: {e}"
@@ -1023,6 +1131,93 @@ def refill_patient_info(df):
                 df.at[i, 'patientid'] = patientid
                 # Optionally update companyId/Pgcompanyid from this patient
     return df
+
+
+# --- New helpers: immediate resolution on patient duplicate ---
+def _download_patients_for_company() -> list:
+    try:
+        resp = requests.get(PATIENT_API, timeout=30)
+        return resp.json() if isinstance(resp.json(), list) else []
+    except Exception as e:
+        print(f"  [PATIENT_LIST] Download error: {e}")
+        return []
+
+def _normalize_name_pair(n: str) -> tuple[str, str]:
+    n = (n or "").strip()
+    n_clean = re.sub(r"[^A-Za-z0-9,\s]", "", n)
+    if "," in n_clean:
+        parts = [p.strip() for p in n_clean.split(",")]
+        last = parts[0] if len(parts) > 0 else ""
+        first = parts[1].split()[0] if len(parts) > 1 else ""
+    else:
+        tokens = [t for t in n_clean.split() if t]
+        if len(tokens) == 0:
+            first, last = "", ""
+        elif len(tokens) == 1:
+            first, last = tokens[0], ""
+        else:
+            first, last = tokens[0], tokens[-1]
+    return first.lower(), last.lower()
+
+def try_mark_patient_exist_immediately(df: pd.DataFrame, idx: int) -> bool:
+    """On patient 409 duplicate, try to find the patient now and set PatientExist/patientid.
+    Returns True if updated, else False.
+    """
+    try:
+        patients = _download_patients_for_company()
+        if not patients:
+            return False
+        row = df.loc[idx]
+        mrn = clean_id(row.get('mrn', ''))
+        dabackid = clean_id(row.get('DABackOfficeID', ''))
+        excel_name = row.get('patientName', '') or row.get('patient_name', '')
+        excel_dob = str(row.get('dob', '') or '').strip()
+
+        # 1) Strong match by MRN or DABackOfficeID
+        for p in patients:
+            agency = p.get('agencyInfo', {})
+            api_mrn = clean_id(agency.get('medicalRecordNo', ''))
+            api_dabackid = clean_id(agency.get('daBackofficeID', ''))
+            if (api_mrn and mrn and api_mrn == mrn) or (api_dabackid and dabackid and api_dabackid == dabackid):
+                # Update row
+                if 'patientid' in df.columns and df['patientid'].dtype == 'float64':
+                    df['patientid'] = df['patientid'].astype('object')
+                df.at[idx, 'patientid'] = p.get('id', '')
+                df.at[idx, 'PatientExist'] = True
+                # Also align company/PG when available
+                agency_company_id = clean_uuid(agency.get('companyId', ''))
+                agency_pg_company_id = clean_uuid(agency.get('pgcompanyID', ''))
+                if agency_company_id:
+                    df.at[idx, 'companyId'] = agency_company_id
+                if agency_pg_company_id:
+                    df.at[idx, 'Pgcompanyid'] = agency_pg_company_id
+                print(f"  [DUP-RESOLVE] Matched patient by MRN/DABackOfficeID. Set PatientExist=True for row {idx}")
+                return True
+
+        # 2) Fallback: match by normalized FIRST/LAST + DOB
+        name_first, name_last = _normalize_name_pair(excel_name)
+        for p in patients:
+            agency = p.get('agencyInfo', {})
+            pfname = (agency.get('patientFName', '') or '').strip()
+            plname = (agency.get('patientLName', '') or '').strip()
+            p_dob = (agency.get('dob', '') or '').strip()
+            p_first, p_last = _normalize_name_pair(f"{pfname} {plname}")
+            if p_first == name_first and p_last == name_last and p_dob == excel_dob:
+                if 'patientid' in df.columns and df['patientid'].dtype == 'float64':
+                    df['patientid'] = df['patientid'].astype('object')
+                df.at[idx, 'patientid'] = p.get('id', '')
+                df.at[idx, 'PatientExist'] = True
+                agency_company_id = clean_uuid(agency.get('companyId', ''))
+                agency_pg_company_id = clean_uuid(agency.get('pgcompanyID', ''))
+                if agency_company_id:
+                    df.at[idx, 'companyId'] = agency_company_id
+                if agency_pg_company_id:
+                    df.at[idx, 'Pgcompanyid'] = agency_pg_company_id
+                print(f"  [DUP-RESOLVE] Matched patient by Name+DOB. Set PatientExist=True for row {idx}")
+                return True
+    except Exception as e:
+        print(f"  [DUP-RESOLVE] Error: {e}")
+    return False
 
 
 def build_order_payload(row, patients=None, company_key=None):
@@ -1204,14 +1399,22 @@ def create_order(row, patients=None, company_key=None):
     
     order_guid = None
     try:
-        resp = requests.post(ORDER_API, headers=HEADERS, json=payload, timeout=20)
-        print("--- [ORDER_CREATE] Response ---")
-        print(f"Status: {resp.status_code}\n{resp.text}\n")
-        try:
-            resp_json = resp.json()
-        except Exception:
-            resp_json = {}
-        success = resp.status_code in (200, 201) and (isinstance(resp_json, dict) and 'orderNo' in resp_json)
+        # Retry on transient errors
+        last_exc = None
+        for attempt in range(1, 4):
+            try:
+                resp = requests.post(ORDER_API, headers=HEADERS, json=payload, timeout=20)
+                print("--- [ORDER_CREATE] Response ---")
+                print(f"Status: {resp.status_code}\n{resp.text}\n")
+                try:
+                    resp_json = resp.json()
+                except Exception:
+                    resp_json = {}
+                # Accept success if 200/201 and any typical key exists
+                success_keys = ['orderNo', 'id', 'orderId', 'guid']
+                success = resp.status_code in (200, 201) and (
+                    isinstance(resp_json, dict) and any((k in resp_json and resp_json.get(k)) for k in success_keys)
+                )
         
         if success:
             # Extract order GUID for PDF upload
@@ -1241,7 +1444,80 @@ def create_order(row, patients=None, company_key=None):
             else:
                 print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
                 return True, f"Order created but no order GUID received for PDF upload"
-        else:
+                if success:
+                    # Extract order GUID for PDF upload
+                    order_guid = resp_json.get('id') or resp_json.get('orderId') or resp_json.get('guid')
+                    print(f"  [ORDER_CREATE] Order created successfully. Order GUID: {order_guid}")
+                    # Upload PDF to the order
+                    if order_guid:
+                        doc_id = row.get('Document ID') or row.get('docId')
+                        if doc_id:
+                            print(f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}")
+                            doc_data = get_document_data(doc_id)
+                            if doc_data:
+                                pdf_success, pdf_remark = upload_pdf_from_document_data(doc_data, order_guid)
+                                if pdf_success:
+                                    print(f"  [PDF_UPLOAD] ✅ PDF uploaded successfully to order {order_guid}")
+                                    return True, f"Order created and PDF uploaded successfully"
+                                else:
+                                    print(f"  [PDF_UPLOAD] ❌ PDF upload failed: {pdf_remark}")
+                                    return True, f"Order created but PDF upload failed: {pdf_remark}"
+                            else:
+                                print(f"  [PDF_UPLOAD] ❌ Could not fetch document data for PDF upload")
+                                return True, f"Order created but could not fetch document data for PDF upload"
+                        else:
+                            print(f"  [PDF_UPLOAD] ❌ No Document ID found for PDF upload")
+                            return True, f"Order created but no Document ID found for PDF upload"
+                    else:
+                        print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
+                        return True, f"Order created but no order GUID received for PDF upload"
+
+                # Simplify error extraction with more context
+                if isinstance(resp_json, dict):
+                    error_details = (
+                        json.dumps(resp_json.get('errors'))
+                        if resp_json.get('errors') is not None
+                        else resp_json.get('message') or resp_json.get('title') or resp.text
+                    )
+                else:
+                    error_details = resp.text
+
+                # If backend reports duplicate/already exists, treat as success per business rule
+                error_text = str(error_details or "")
+                duplicate_markers = [
+                    "already exist",
+                    "already exists",
+                    "duplicate",
+                    "exists",
+                    "conflict",
+                ]
+                is_duplicate = (
+                    resp.status_code == 409
+                    or any(m in error_text.lower() for m in duplicate_markers)
+                )
+                if is_duplicate:
+                    print(f"[ORDER_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}")
+                    return True, "Order already exists on platform; treated as success"
+
+                # Retry on server errors
+                if resp.status_code >= 500:
+                    time.sleep(min(3, attempt))
+                    continue
+
+                print(f"[ORDER_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_details}")
+                return False, f"Order API failure: HTTP {resp.status_code} - {error_details}"
+            except Exception as e:
+                last_exc = e
+                if attempt < 3:
+                    time.sleep(min(3, attempt))
+                    continue
+                else:
+                    raise
+        # If loop exhausted
+        return False, "Exception: retry exhausted"
+    except Exception as e:
+        print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
+        return False, f"Exception: {e}"
             # Simplify error extraction with more context
             if isinstance(resp_json, dict):
                 error_details = (
@@ -1461,6 +1737,14 @@ def main():
             if success:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = ""
                 created_patients.add(dabackid)
+                # If duplicate success, immediately resolve PatientExist/patientid
+                try:
+                    if isinstance(remarks, str) and 'already exists on platform' in remarks.lower():
+                        updated = try_mark_patient_exist_immediately(df, idx)
+                        if not updated:
+                            print(f"  [DUP-RESOLVE] Could not immediately link duplicate patient for row {idx}")
+                except Exception:
+                    pass
             else:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks  # Already includes error if any
         else:
@@ -1495,6 +1779,13 @@ def main():
             if success:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = ""
                 created_patients.add(dabackid)
+                try:
+                    if isinstance(remarks, str) and 'already exists on platform' in remarks.lower():
+                        updated = try_mark_patient_exist_immediately(df, idx)
+                        if not updated:
+                            print(f"  [DUP-RESOLVE] Could not immediately link duplicate patient for row {idx} (pass2)")
+                except Exception:
+                    pass
             else:
                 df.at[idx, 'PATIENT_CREATION_REMARK'] = remarks
         else:

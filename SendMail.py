@@ -17,7 +17,7 @@ from google.auth.transport.requests import Request
 # ========== CONFIG ==========
 
 EXCEL_INPUT_PATH = "supreme_excel_with_patient_and_order_upload.xlsx"   # Your output Excel file
-TO_EMAILS = ["sujay@doctoralliance.com","shubhash@doctoralliance.com","pranavraam@doctoralliance.com","lisa@doctoralliance.com"]
+TO_EMAILS = ["pranavraam@doctoralliance.com"]
 CC_EMAILS = []
 
 # Google OAuth2 credentials
@@ -73,7 +73,7 @@ def replace_ids_with_names(df):
     
     return df
 
-def send_patient_script_mail(to_emails, cc_emails, excel_path, subject="PATIENT SCRIPT"):
+def send_patient_script_mail(to_emails, cc_emails, attachment_paths, subject="PATIENT SCRIPT"):
     creds = Credentials(
         None,
         refresh_token=REFRESH_TOKEN,
@@ -88,13 +88,30 @@ def send_patient_script_mail(to_emails, cc_emails, excel_path, subject="PATIENT 
     message['To'] = ', '.join(to_emails)
     message['Cc'] = ', '.join(cc_emails)
     message['Subject'] = subject
-    body_html = "<p>Please find attached the output Excel.</p>"
+    # Normalize to list
+    if isinstance(attachment_paths, str):
+        attachment_list = [attachment_paths]
+    else:
+        attachment_list = [p for p in (attachment_paths or []) if isinstance(p, str)]
+
+    # Build simple body text depending on number of attachments
+    try:
+        attach_names = [os.path.basename(p) for p in attachment_list if os.path.isfile(p)]
+    except Exception:
+        attach_names = []
+    if len(attach_names) > 1:
+        body_html = f"<p>Please find attached the reports:<br/>- {'<br/>- '.join(attach_names)}</p>"
+    else:
+        body_html = "<p>Please find attached the output Excel.</p>"
     message.attach(MIMEText(body_html, 'html'))
-    if excel_path and os.path.isfile(excel_path):
-        with open(excel_path, "rb") as f:
-            part = MIMEApplication(f.read(), Name=os.path.basename(excel_path))
-        part['Content-Disposition'] = f'attachment; filename="{os.path.basename(excel_path)}"'
-        message.attach(part)
+
+    # Attach all files that exist
+    for path in attachment_list:
+        if path and os.path.isfile(path):
+            with open(path, "rb") as f:
+                part = MIMEApplication(f.read(), Name=os.path.basename(path))
+            part['Content-Disposition'] = f'attachment; filename="{os.path.basename(path)}"'
+            message.attach(part)
     raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode()
     body = {'raw': raw_message}
     try:
@@ -140,13 +157,62 @@ def cleanup_files(xlsx_dir):
 
 # ========== MAIN ==========
 if __name__ == "__main__":
-    # Get input file name from command line arguments
-    input_file = EXCEL_INPUT_PATH  # default
+    # Accept multiple input file paths for direct sending
+    cli_paths = sys.argv[1:]
+    if not cli_paths:
+        cli_paths = [EXCEL_INPUT_PATH]
     
-    if len(sys.argv) > 1:
-        input_file = sys.argv[1]
-    
-    # 1. Prepare dated output folder
+    # 1. If we were given existing files (e.g., from outputs/), attach and send directly
+    def _normalize_path(p: str) -> str:
+        try:
+            p = (p or "").strip().strip('"').strip("'")
+            p = os.path.expanduser(os.path.expandvars(p))
+            p = os.path.normpath(p)
+            # Handle Windows long paths
+            if os.name == 'nt' and os.path.isabs(p) and not p.startswith('\\\\?\\') and len(p) > 240:
+                p = '\\\\?\\' + p
+            return p
+        except Exception:
+            return p
+
+    def _file_exists(p: str) -> bool:
+        try:
+            return os.path.isfile(p) or os.path.isfile(_normalize_path(p)) or os.path.exists(p) or os.path.exists(_normalize_path(p))
+        except Exception:
+            return False
+
+    existing_paths: list[str] = []
+    missing_paths: list[str] = []
+    for raw in cli_paths:
+        normp = _normalize_path(raw)
+        absp = os.path.abspath(normp)
+        if _file_exists(raw) or _file_exists(normp) or _file_exists(absp):
+            # prefer absolute normalized path for attachment name
+            chosen = absp if _file_exists(absp) else (normp if _file_exists(normp) else raw)
+            existing_paths.append(chosen)
+        else:
+            missing_paths.append(raw)
+    if existing_paths:
+        # Choose a sensible subject
+        if any("processing_report" in os.path.basename(p) for p in existing_paths):
+            email_subject = "PATIENT SCRIPT - PROCESSING REPORT AND SUPREME SHEET"
+        else:
+            email_subject = "PATIENT SCRIPT - RESULTS"
+        print(f"Sending existing files directly: {', '.join(existing_paths)}")
+        if missing_paths:
+            # Extra debug to help spot subtle path issues
+            debug_lines = []
+            for m in missing_paths:
+                debug_lines.append(f"  - raw='{m}' | norm='{_normalize_path(m)}' | abs='{os.path.abspath(_normalize_path(m))}' | exists={_file_exists(m)}")
+            print("Warning: Skipping non-existent paths:\n" + "\n".join(debug_lines))
+        send_patient_script_mail(TO_EMAILS, CC_EMAILS, existing_paths, email_subject)
+        print("Emails sent with provided attachments.")
+        sys.exit(0)
+
+    # 2. Otherwise, fall back to legacy single-file workflow (re-saves with standard naming)
+    input_file = cli_paths[0]
+
+    # Prepare dated output folder
     today_str = datetime.now().strftime("%Y-%m-%d")
     xlsx_dir = os.path.join(today_str, "xlsx")
     os.makedirs(xlsx_dir, exist_ok=True)
@@ -265,7 +331,7 @@ if __name__ == "__main__":
 
     # 5. Send mail with appropriate subject
     print(f"Sending email with subject: {email_subject}...")
-    send_patient_script_mail(TO_EMAILS, CC_EMAILS, excel_out_path, email_subject)
+    send_patient_script_mail(TO_EMAILS, CC_EMAILS, [excel_out_path], email_subject)
 
     # 6. Cleanup files
     print("Cleaning up old files...")
