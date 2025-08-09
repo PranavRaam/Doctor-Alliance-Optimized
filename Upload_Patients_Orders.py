@@ -541,7 +541,9 @@ def search_patientid_by_name_dob(patients, name, dob):
             # Format: LAST, FIRST [M]
             parts = [p.strip() for p in n_clean.split(",")]
             last = parts[0] if len(parts) > 0 else ""
-            first = parts[1].split()[0] if len(parts) > 1 else ""
+            # Guard when there is a trailing comma (e.g., "Doe,") which yields empty first tokens
+            first_tokens = parts[1].split() if len(parts) > 1 else []
+            first = first_tokens[0] if first_tokens else ""
         else:
             # Format: FIRST [MIDDLE ...] LAST
             tokens = [t for t in n_clean.split() if t]
@@ -1148,7 +1150,8 @@ def _normalize_name_pair(n: str) -> tuple[str, str]:
     if "," in n_clean:
         parts = [p.strip() for p in n_clean.split(",")]
         last = parts[0] if len(parts) > 0 else ""
-        first = parts[1].split()[0] if len(parts) > 1 else ""
+        first_tokens = parts[1].split() if len(parts) > 1 else []
+        first = first_tokens[0] if first_tokens else ""
     else:
         tokens = [t for t in n_clean.split() if t]
         if len(tokens) == 0:
