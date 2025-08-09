@@ -1380,109 +1380,107 @@ def create_order(row, patients=None, company_key=None):
     payload = clean_payload_for_json(payload)
     # Human-friendly summary of what is being sent
     try:
-        print("[ORDER_SUMMARY]",
-              f"DocID={payload.get('documentID','')}",
-              f"OrderNo={payload.get('orderNo','')}",
-              f"OrderDate={payload.get('orderDate','')}",
-              f"PatientName={payload.get('patientName','')}",
-              f"MRN={payload.get('mrn','')}",
-              f"SOC={payload.get('startOfCare','')}",
-              f"SOE={payload.get('episodeStartDate','')}",
-              f"EOE={payload.get('episodeEndDate','')}",
-              f"DocType={payload.get('documentName','')}",
-              f"CompanyId={payload.get('companyId','')}",
-              f"PG={payload.get('pgCompanyId','')}")
+        print(
+            "[ORDER_SUMMARY]",
+            f"DocID={payload.get('documentID','')}",
+            f"OrderNo={payload.get('orderNo','')}",
+            f"OrderDate={payload.get('orderDate','')}",
+            f"PatientName={payload.get('patientName','')}",
+            f"MRN={payload.get('mrn','')}",
+            f"SOC={payload.get('startOfCare','')}",
+            f"SOE={payload.get('episodeStartDate','')}",
+            f"EOE={payload.get('episodeEndDate','')}",
+            f"DocType={payload.get('documentName','')}",
+            f"CompanyId={payload.get('companyId','')}",
+            f"PG={payload.get('pgCompanyId','')}",
+        )
     except Exception:
         pass
+
     print("\n--- [ORDER_CREATE] Request Payload ---")
     print(json.dumps(payload, indent=2, default=str))
-    
-    order_guid = None
+
     try:
-        # Retry on transient errors
-        last_exc = None
+        last_exception = None
         for attempt in range(1, 4):
             try:
                 resp = requests.post(ORDER_API, headers=HEADERS, json=payload, timeout=20)
                 print("--- [ORDER_CREATE] Response ---")
                 print(f"Status: {resp.status_code}\n{resp.text}\n")
+
                 try:
                     resp_json = resp.json()
                 except Exception:
                     resp_json = {}
+
                 # Accept success if 200/201 and any typical key exists
-                success_keys = ['orderNo', 'id', 'orderId', 'guid']
+                success_keys = ["orderNo", "id", "orderId", "guid"]
                 success = resp.status_code in (200, 201) and (
-                    isinstance(resp_json, dict) and any((k in resp_json and resp_json.get(k)) for k in success_keys)
+                    isinstance(resp_json, dict)
+                    and any((k in resp_json and resp_json.get(k)) for k in success_keys)
                 )
-        
-        if success:
-            # Extract order GUID for PDF upload
-            order_guid = resp_json.get('id') or resp_json.get('orderId') or resp_json.get('guid')
-            print(f"  [ORDER_CREATE] Order created successfully. Order GUID: {order_guid}")
-            
-            # Upload PDF to the order
-            if order_guid:
-                doc_id = row.get('Document ID') or row.get('docId')
-                if doc_id:
-                    print(f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}")
-                    doc_data = get_document_data(doc_id)
-                    if doc_data:
-                        pdf_success, pdf_remark = upload_pdf_from_document_data(doc_data, order_guid)
-                        if pdf_success:
-                            print(f"  [PDF_UPLOAD] ✅ PDF uploaded successfully to order {order_guid}")
-                            return True, f"Order created and PDF uploaded successfully"
-                        else:
-                            print(f"  [PDF_UPLOAD] ❌ PDF upload failed: {pdf_remark}")
-                            return True, f"Order created but PDF upload failed: {pdf_remark}"
-                    else:
-                        print(f"  [PDF_UPLOAD] ❌ Could not fetch document data for PDF upload")
-                        return True, f"Order created but could not fetch document data for PDF upload"
-                else:
-                    print(f"  [PDF_UPLOAD] ❌ No Document ID found for PDF upload")
-                    return True, f"Order created but no Document ID found for PDF upload"
-            else:
-                print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
-                return True, f"Order created but no order GUID received for PDF upload"
+
                 if success:
                     # Extract order GUID for PDF upload
-                    order_guid = resp_json.get('id') or resp_json.get('orderId') or resp_json.get('guid')
+                    order_guid = (
+                        resp_json.get("id") or resp_json.get("orderId") or resp_json.get("guid")
+                    )
                     print(f"  [ORDER_CREATE] Order created successfully. Order GUID: {order_guid}")
+
                     # Upload PDF to the order
                     if order_guid:
-                        doc_id = row.get('Document ID') or row.get('docId')
+                        doc_id = row.get("Document ID") or row.get("docId")
                         if doc_id:
-                            print(f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}")
+                            print(
+                                f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}"
+                            )
                             doc_data = get_document_data(doc_id)
                             if doc_data:
-                                pdf_success, pdf_remark = upload_pdf_from_document_data(doc_data, order_guid)
+                                pdf_success, pdf_remark = upload_pdf_from_document_data(
+                                    doc_data, order_guid
+                                )
                                 if pdf_success:
-                                    print(f"  [PDF_UPLOAD] ✅ PDF uploaded successfully to order {order_guid}")
-                                    return True, f"Order created and PDF uploaded successfully"
+                                    print(
+                                        f"  [PDF_UPLOAD] ✅ PDF uploaded successfully to order {order_guid}"
+                                    )
+                                    return True, "Order created and PDF uploaded successfully"
                                 else:
-                                    print(f"  [PDF_UPLOAD] ❌ PDF upload failed: {pdf_remark}")
+                                    print(
+                                        f"  [PDF_UPLOAD] ❌ PDF upload failed: {pdf_remark}"
+                                    )
                                     return True, f"Order created but PDF upload failed: {pdf_remark}"
                             else:
-                                print(f"  [PDF_UPLOAD] ❌ Could not fetch document data for PDF upload")
-                                return True, f"Order created but could not fetch document data for PDF upload"
+                                print(
+                                    "  [PDF_UPLOAD] ❌ Could not fetch document data for PDF upload"
+                                )
+                                return (
+                                    True,
+                                    "Order created but could not fetch document data for PDF upload",
+                                )
                         else:
-                            print(f"  [PDF_UPLOAD] ❌ No Document ID found for PDF upload")
-                            return True, f"Order created but no Document ID found for PDF upload"
+                            print(
+                                "  [PDF_UPLOAD] ❌ No Document ID found for PDF upload"
+                            )
+                            return True, "Order created but no Document ID found for PDF upload"
                     else:
-                        print(f"  [PDF_UPLOAD] ❌ No order GUID received for PDF upload")
-                        return True, f"Order created but no order GUID received for PDF upload"
+                        print(
+                            "  [PDF_UPLOAD] ❌ No order GUID received for PDF upload"
+                        )
+                        return True, "Order created but no order GUID received for PDF upload"
 
-                # Simplify error extraction with more context
+                # Not a success response, extract error details
                 if isinstance(resp_json, dict):
                     error_details = (
-                        json.dumps(resp_json.get('errors'))
-                        if resp_json.get('errors') is not None
-                        else resp_json.get('message') or resp_json.get('title') or resp.text
+                        json.dumps(resp_json.get("errors"))
+                        if resp_json.get("errors") is not None
+                        else resp_json.get("message")
+                        or resp_json.get("title")
+                        or resp.text
                     )
                 else:
                     error_details = resp.text
 
-                # If backend reports duplicate/already exists, treat as success per business rule
+                # Treat duplicates as success per business rule
                 error_text = str(error_details or "")
                 duplicate_markers = [
                     "already exist",
@@ -1496,61 +1494,34 @@ def create_order(row, patients=None, company_key=None):
                     or any(m in error_text.lower() for m in duplicate_markers)
                 )
                 if is_duplicate:
-                    print(f"[ORDER_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}")
+                    print(
+                        f"[ORDER_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}"
+                    )
                     return True, "Order already exists on platform; treated as success"
 
                 # Retry on server errors
-                if resp.status_code >= 500:
+                if resp.status_code >= 500 and attempt < 3:
                     time.sleep(min(3, attempt))
                     continue
 
-                print(f"[ORDER_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_details}")
+                print(
+                    f"[ORDER_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_details}"
+                )
                 return False, f"Order API failure: HTTP {resp.status_code} - {error_details}"
             except Exception as e:
-                last_exc = e
+                last_exception = e
                 if attempt < 3:
                     time.sleep(min(3, attempt))
                     continue
                 else:
                     raise
+
         # If loop exhausted
         return False, "Exception: retry exhausted"
     except Exception as e:
         print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
         return False, f"Exception: {e}"
-            # Simplify error extraction with more context
-            if isinstance(resp_json, dict):
-                error_details = (
-                    json.dumps(resp_json.get('errors'))
-                    if resp_json.get('errors') is not None
-                    else resp_json.get('message') or resp_json.get('title') or resp.text
-                )
-            else:
-                error_details = resp.text
 
-            # If backend reports duplicate/already exists, treat as success per business rule
-            error_text = str(error_details or "")
-            duplicate_markers = [
-                "already exist",
-                "already exists",
-                "duplicate",
-                "exists",
-                "conflict",
-            ]
-            is_duplicate = (
-                resp.status_code == 409
-                or any(m in error_text.lower() for m in duplicate_markers)
-            )
-            if is_duplicate:
-                print(f"[ORDER_CREATE] ⚠️ Duplicate detected (HTTP {resp.status_code}). Treating as success. Details: {error_text}")
-                return True, "Order already exists on platform; treated as success"
-
-            print(f"[ORDER_CREATE] ❌ Failure: HTTP {resp.status_code} - {error_details}")
-            return False, f"Order API failure: HTTP {resp.status_code} - {error_details}"
-            
-    except Exception as e:
-        print(f"  [ORDER_CREATE] Error for {row.get('Document ID', '')}: {e}")
-        return False, f"Exception: {e}"
 
 
 def upload_pdf_to_order(document_buffer, order_guid):
