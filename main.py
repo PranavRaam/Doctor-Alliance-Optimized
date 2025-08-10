@@ -3,6 +3,7 @@ import sys
 import os
 import glob
 import shutil
+import re
 import pandas as pd
 import requests
 import json
@@ -79,6 +80,7 @@ def cleanup_old_excels():
     import glob
     patterns = [
         "doctoralliance_combined_output_*.xlsx",
+        "dao_combined_*.xlsx",
         "supreme_excel_*.xlsx"
     ]
     for pattern in patterns:
@@ -302,19 +304,60 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
     df = pd.read_excel(final_excel_path)
     print(f"Processing {len(df)} total records...")
     
-    # Define success criteria
-    # Consider order success as primary, and patient TRUE/SKIPPED acceptable
-    order_ok = df['ORDERUPLOAD_STATUS'] == 'TRUE'
-    patient_ok = df['PATIENTUPLOAD_STATUS'].isin(['TRUE', 'SKIPPED'])
+    # Define success criteria (strict, platform-aware)
+    # Primary driver: if the order was created successfully, it's a success regardless of patient creation path
+    order_ok = df.get('ORDERUPLOAD_STATUS', '').astype(str).str.strip().str.upper() == 'TRUE'
 
-    # Additional success: order creation remark indicates duplicate/already exists
+    # Additional success from remarks: explicit duplicates (treated as success) or messages indicating order created
     remark_col = 'ORDER_CREATION_REMARK' if 'ORDER_CREATION_REMARK' in df.columns else None
     if remark_col:
-        dup_markers = ['already exist', 'already exists', 'duplicate', 'exists', 'conflict']
-        dup_mask = df[remark_col].astype(str).str.lower().apply(lambda x: any(m in x for m in dup_markers))
-        success_mask = (order_ok & patient_ok) | dup_mask
+        success_markers = [
+            'already exist', 'already exists', 'duplicate', 'exists', 'conflict',
+            'order created',  # covers phrases like "Order created and PDF uploaded successfully"
+            'treated as success'
+        ]
+        remarks_lower = df[remark_col].astype(str).str.lower()
+        remarks_success = remarks_lower.apply(lambda x: any(m in x for m in success_markers))
     else:
-        success_mask = (order_ok & patient_ok)
+        remarks_success = pd.Series([False] * len(df))
+
+    # PLATFORM VERIFICATION: If document already has an order on the platform, classify as success
+    def _normalize_docid(val: str) -> str:
+        s = str(val).strip()
+        if not s or s.lower() in ('nan', 'none'):
+            return ''
+        # Strip any trailing .0 and non-digits
+        if s.endswith('.0'):
+            s = s[:-2]
+        # Keep digits only if any present
+        digits = ''.join(ch for ch in s if ch.isdigit())
+        return digits or s
+
+    try:
+        doc_id_col = 'Document ID' if 'Document ID' in df.columns else ('docId' if 'docId' in df.columns else None)
+        if doc_id_col:
+            from typing import Set
+            # Fetch existing document IDs from platform for this company
+            existing_ids_raw = get_existing_document_ids(company_key)
+            existing_ids: Set[str] = set(_normalize_docid(x) for x in existing_ids_raw)
+            df['__docid_norm__'] = df[doc_id_col].astype(str).map(_normalize_docid)
+            exists_on_platform = df['__docid_norm__'].isin(existing_ids)
+        else:
+            exists_on_platform = pd.Series([False] * len(df))
+    except Exception as e:
+        print(f"⚠️  Could not verify existing orders on platform for success classification: {e}")
+        exists_on_platform = pd.Series([False] * len(df))
+
+    # Combine all success signals
+    success_mask = order_ok | remarks_success | exists_on_platform
+
+    # If ORDER_CREATION_REMARK explicitly indicates failure with DocumentName missing but order later existed on platform, treat as success
+    try:
+        if remark_col:
+            docname_missing = df[remark_col].astype(str).str.contains('DocumentName', case=False, na=False)
+            success_mask = success_mask | (docname_missing & exists_on_platform)
+    except Exception:
+        pass
 
     successful_records = df[success_mask].copy()
     failed_records = df[~success_mask].copy()
@@ -337,103 +380,46 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
     # Create single Excel file with both sheets
     combined_filename = f"{company_name}_processing_report_{start_date_formatted}_{end_date_formatted}.xlsx"
     
-    # Process failed records with specific columns and failure reasons
+    # Process failed records with specific columns and order as requested
     if len(failed_records) > 0:
-        # Create failed records with specific columns
-        failed_output = pd.DataFrame()
-        
-        # Map columns to required format
-        failed_output["docid"] = failed_records.get("Document ID", "")
-        failed_output["patient_name"] = failed_records.get("patientName", "")
-        failed_output["dob"] = failed_records.get("dob", "")
-        failed_output["dabackofficeid"] = failed_records.get("DABackOfficeID", "")
-        failed_output["mrn_number"] = failed_records.get("mrn", "")
-        
-        # Load mappings for PG name and agency name
-        company_mapping = load_company_mapping()
-        pg_mapping = load_pg_mapping()
-        
-        def get_pg_company_name(pg_id):
-            if pd.isna(pg_id):
-                return ""
-            formatted_pg_id = format_uuid(pg_id)
-            if formatted_pg_id:
-                return pg_mapping.get(formatted_pg_id, "")
-            return ""
-        
-        def get_company_name(company_id):
-            """Convert company ID to company name using company.json."""
-            if pd.isna(company_id):
-                return "Unknown"
-            
-            # Format the UUID with hyphens
-            formatted_company_id = format_uuid(company_id)
-            if formatted_company_id:
-                company_name = company_mapping.get(formatted_company_id, "")
-                if company_name:
-                    return company_name
-                else:
-                    # If company ID not found in mapping, use a fallback approach
-                    print(f"⚠️  Company ID not found in mapping: {formatted_company_id}")
-                    # Try to get company name from active company config as fallback
-                    try:
-                        from config import get_active_company
-                        active_company = get_active_company()
-                        return active_company['name']
-                    except:
-                        return f"Unknown Company ({formatted_company_id})"
-            else:
-                return f"Invalid Company ID ({company_id})"
-        
-        failed_output["pg name"] = failed_records.get("Pgcompanyid", "").apply(get_pg_company_name)
-        if "nameOfAgency" in failed_records.columns:
-            failed_output["agency name"] = failed_records["nameOfAgency"].fillna("")
-        else:
-            failed_output["agency name"] = failed_records.get("companyId", "").apply(get_company_name)
-        
-        # Determine failure reason
-        def get_failure_reason(row):
-            patient_status = row.get("PATIENTUPLOAD_STATUS", "")
-            order_status = row.get("ORDERUPLOAD_STATUS", "")
-            patient_remark = row.get("PATIENTUPLOAD_REMARKS", "")
-            order_remark = row.get("ORDER_CREATION_REMARK", "")
-            
-            reasons = []
-            
-            # Check patient upload failure
-            if patient_status != "TRUE":
-                if patient_status == "SKIPPED":
-                    reasons.append("Patient upload skipped")
-                elif patient_status == "FALSE":
-                    if patient_remark:
-                        reasons.append(f"Patient upload failed: {patient_remark}")
-                    else:
-                        reasons.append("Patient upload failed")
-                else:
-                    reasons.append("Patient upload status unclear")
-            
-            # Check order upload failure
-            if order_status != "TRUE":
-                if order_status == "SKIPPED":
-                    reasons.append("Order upload skipped")
-                elif order_status == "FALSE":
-                    if order_remark:
-                        reasons.append(f"Order upload failed: {order_remark}")
-                    else:
-                        reasons.append("Order upload failed")
-                else:
-                    reasons.append("Order upload status unclear")
-            
-            return "; ".join(reasons) if reasons else "Unknown failure reason"
-        
-        failed_output["reason"] = failed_records.apply(get_failure_reason, axis=1)
-        
-        # Show failure reason summary
-        if len(failed_output) > 0:
-            print(f"📊 Failure reasons summary:")
-            reason_counts = failed_output["reason"].value_counts()
-            for reason, count in reason_counts.head(5).items():
-                print(f"   - {reason}: {count} records")
+        # Build failed_output with strict column order
+        failed_output = pd.DataFrame({
+            # Identity and order details
+            "Document ID": failed_records.get("Document ID", failed_records.get("docId", "")),
+            "NPI": failed_records.get("NPI", ""),
+            "orderno": failed_records.get("orderno", ""),
+            "orderdate": failed_records.get("orderdate", ""),
+            # Patient and clinical
+            "mrn": failed_records.get("mrn", ""),
+            "dob": failed_records.get("dob", ""),
+            "address": failed_records.get("address", ""),
+            "soc": failed_records.get("soc", ""),
+            "cert_period_soe": failed_records.get("cert_period_soe", ""),
+            "cert_period_eoe": failed_records.get("cert_period_eoe", ""),
+            "Diagnosis 1": failed_records.get("Diagnosis 1", ""),
+            "Diagnosis 2": failed_records.get("Diagnosis 2", ""),
+            "Diagnosis 3": failed_records.get("Diagnosis 3", ""),
+            "Diagnosis 4": failed_records.get("Diagnosis 4", ""),
+            "Diagnosis 5": failed_records.get("Diagnosis 5", ""),
+            "Diagnosis 6": failed_records.get("Diagnosis 6", ""),
+            "documentType": failed_records.get("documentType", ""),
+            "physicianSigndate": failed_records.get("physicianSigndate", ""),
+            # Cross-references
+            "DABackOfficeID": failed_records.get("DABackOfficeID", ""),
+            "patientName": failed_records.get("patientName", failed_records.get("patient_name", "")),
+            "sendDate": failed_records.get("sendDate", ""),
+            "patient_sex": failed_records.get("patient_sex", ""),
+            "PatientExist": failed_records.get("PatientExist", ""),
+            "patientid": failed_records.get("patientid", ""),
+            "Pgcompanyid": failed_records.get("Pgcompanyid", ""),
+            "companyId": failed_records.get("companyId", ""),
+            # Document naming
+            "DocumentName": failed_records.get("DocumentName", ""),
+            # Populated after Drive upload step
+            "PDF_Drive_Link": "",
+            # Map order response remark if available
+            "ORDER_RESPONSE": failed_records.get("ORDER_CREATION_REMARK", ""),
+        })
     else:
         print("✅ No failed records!")
         failed_output = pd.DataFrame()  # Empty DataFrame for failed records
@@ -442,6 +428,8 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
     with pd.ExcelWriter(combined_filename, engine='openpyxl') as writer:
         # Write successful records sheet (all columns)
         if len(successful_records) > 0:
+            # Drop helper column if present
+            successful_records = successful_records.drop(columns=['__docid_norm__'], errors='ignore')
             successful_records.to_excel(writer, sheet_name='Successful_Records', index=False)
             print(f"📊 Added successful records sheet: {len(successful_records)} records")
         else:
@@ -452,18 +440,27 @@ def create_success_failed_excels(final_excel_path, company_key, start_date, end_
         
         # Write failed records sheet (specific columns)
         if len(failed_output) > 0:
+            # Drop helper column if it leaked in
+            failed_output = failed_output.drop(columns=['__docid_norm__'], errors='ignore')
             failed_output.to_excel(writer, sheet_name='Failed_Records', index=False)
             print(f"📊 Added failed records sheet: {len(failed_output)} records")
         else:
-            # Create empty failed sheet with headers
-            empty_failed = pd.DataFrame(columns=["docid", "patient_name", "dob", "dabackofficeid", "mrn_number", "pg name", "agency name", "reason"])
+            # Create empty failed sheet with requested headers
+            empty_failed_columns = [
+                "Document ID","NPI","orderno","orderdate","mrn","dob","address","soc",
+                "cert_period_soe","cert_period_eoe","Diagnosis 1","Diagnosis 2","Diagnosis 3",
+                "Diagnosis 4","Diagnosis 5","Diagnosis 6","documentType","physicianSigndate",
+                "DABackOfficeID","patientName","sendDate","patient_sex","PatientExist","patientid",
+                "Pgcompanyid","companyId","DocumentName","PDF_Drive_Link","ORDER_RESPONSE"
+            ]
+            empty_failed = pd.DataFrame(columns=empty_failed_columns)
             empty_failed.to_excel(writer, sheet_name='Failed_Records', index=False)
             print("📊 Added empty failed records sheet")
     
     print(f"📁 Created combined Excel file: {combined_filename}")
     
     # Add Drive links for failed records if any failed records exist
-    if len(failed_records) > 0:
+    if len(failed_records) > 0 and len(failed_output) > 0:
         print(f"\n☁️  Uploading failed PDFs to Google Drive...")
         add_drive_links_to_failed_records(failed_output, combined_filename)
     
@@ -631,8 +628,9 @@ def add_drive_links_to_failed_records(failed_records_df, excel_filename):
         print("No failed records to add Drive links for")
         return
     
-    # Get document IDs from failed records
-    doc_ids = failed_records_df['docid'].dropna().unique()
+    # Get document IDs from failed records (prefer 'Document ID' if present)
+    doc_id_col = 'Document ID' if 'Document ID' in failed_records_df.columns else 'docid'
+    doc_ids = failed_records_df[doc_id_col].dropna().unique()
     print(f"📄 Uploading {len(doc_ids)} failed PDFs to Google Drive...")
     
     if len(doc_ids) == 0:
@@ -681,7 +679,7 @@ def add_drive_links_to_failed_records(failed_records_df, excel_filename):
             continue
     
     # Add Drive URL column to the failed records DataFrame
-    failed_records_df['PDF_Drive_Link'] = failed_records_df['docid'].astype(str).map(doc_id_to_drive_url)
+    failed_records_df['PDF_Drive_Link'] = failed_records_df[doc_id_col].astype(str).map(doc_id_to_drive_url)
     
     # Update the Excel file by reading existing sheets and updating the failed records sheet
     try:
@@ -915,8 +913,28 @@ def process_single_company(company_key, start_date, end_date):
 
     # Save company-specific combined output (write directly to structured folder)
     combined_excel = os.path.join(dirs['intermediate'], f"doctoralliance_combined_output_{company_key}.xlsx")
-    merged.to_excel(combined_excel, index=False)
-    print(f"\n✅ Combined output written to {combined_excel}")
+    # Ensure the target directory exists before writing
+    out_dir = os.path.dirname(combined_excel)
+    if out_dir:
+        try:
+            os.makedirs(out_dir, exist_ok=True)
+        except Exception as e:
+            print(f"⚠️  Could not create directory {out_dir}: {e}")
+
+    # Attempt to write; if it fails due to missing dir or path issues, fall back to CWD
+    try:
+        merged.to_excel(combined_excel, index=False)
+        print(f"\n✅ Combined output written to {combined_excel}")
+    except (FileNotFoundError, OSError) as e:
+        print(f"❗ Could not write combined output to {combined_excel}: {e}")
+        fallback_combined = f"dao_combined_{company_key}.xlsx"
+        try:
+            merged.to_excel(fallback_combined, index=False)
+            combined_excel = fallback_combined
+            print(f"\n✅ Combined output written to fallback path {combined_excel}")
+        except Exception as e2:
+            print(f"❌ Failed to write combined output even to fallback path: {e2}")
+            raise
     
     # Step 6: Run supremesheet.py using the combined Excel as input
     print(f"\nStep 4: Running supremesheet.py on combined output for {company['name']}...")
@@ -928,10 +946,21 @@ def process_single_company(company_key, start_date, end_date):
     if os.path.exists(supremesheet_output):
         print(f"\n🎉 Supreme sheet is ready for {company['name']}: {supremesheet_output}")
         
-        # Step 8: Skip old failed records creation - will be done after upload processing
-        print(f"\nStep 5: Skipping old failed records creation for {company['name']}...")
+        # Step 5: Ensure document names/types are populated before upload
+        try:
+            print(f"\nStep 5: Prefilling document names/types on supreme sheet before upload for {company['name']}...")
+            df_supreme = pd.read_excel(supremesheet_output)
+            before_missing = ((df_supreme.get('documentType', '').astype(str).str.strip() == '') | (~df_supreme.columns.isin(['documentType']))) if len(df_supreme) else []
+            df_supreme = prefill_document_names(df_supreme)
+            df_supreme.to_excel(supremesheet_output, index=False)
+            print(f"✅ Prefilled document names/types on supreme sheet")
+        except Exception as e:
+            print(f"⚠️  Could not prefill document names on supreme sheet: {e}")
         
-        # Step 9: Run Upload_Patients_Orders.py on the supreme Excel output
+        # Step 6: Skip old failed records creation - will be done after upload processing
+        print(f"\nStep 6: Skipping old failed records creation for {company['name']}...")
+        
+        # Step 7: Run Upload_Patients_Orders.py on the supreme Excel output
         print(f"\nStep 6: Uploading Patients and Orders for {company['name']}...")
         print(f"   Input file: {supremesheet_output}")
         print(f"   Company key: {company_key}")
@@ -1007,7 +1036,7 @@ if __name__ == "__main__":
     from config import (
         get_active_company, show_active_company, set_active_company, 
         list_companies, get_companies_to_process, get_date_range, 
-        show_current_config, PROCESS_MULTIPLE_COMPANIES
+        show_current_config, PROCESS_MULTIPLE_COMPANIES, get_company_config
     )
     
     # Show current configuration
@@ -1044,8 +1073,16 @@ if __name__ == "__main__":
                     print(f"⚠️  Skipped or failed: {company_key} (no documents found or processing failed)")
                     
                 # New workflow: Create and send successful and failed Excel files
-                final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
-                if os.path.exists(final_upload_file):
+                company = get_company_config(company_key)
+                dirs = get_output_dirs(company['name'], start_date, end_date)
+                candidate_paths = [
+                    os.path.join(dirs['uploads'], f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"),
+                    os.path.join(dirs['intermediate'], f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"),
+                    f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx",
+                ]
+                final_upload_file = next((p for p in candidate_paths if os.path.exists(p)), None)
+
+                if final_upload_file and os.path.exists(final_upload_file):
                     print(f"\n📊 Creating success/failed Excel files for {company_key}...")
                     
                     # First, try to fix failed records with document names
@@ -1083,8 +1120,10 @@ if __name__ == "__main__":
                         print(f"⚠️  No processing report to send for {company_key}")
                     
                 else:
-                    print(f"❌ Final upload file not found: {final_upload_file}")
-                    print(f"   Cannot create success/failed Excel files")
+                    print("❌ Final upload file not found in expected locations:")
+                    for p in candidate_paths:
+                        print(f"   - {p}")
+                    print("   Cannot create success/failed Excel files")
                         
             except Exception as e:
                 print(f"❌ Error processing {company_key}: {e}")
@@ -1126,8 +1165,16 @@ if __name__ == "__main__":
         
         if success:
             # New workflow: Create and send successful and failed Excel files
-            final_upload_file = f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"
-            if os.path.exists(final_upload_file):
+            company = get_company_config(company_key)
+            dirs = get_output_dirs(company['name'], start_date, end_date)
+            candidate_paths = [
+                os.path.join(dirs['uploads'], f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"),
+                os.path.join(dirs['intermediate'], f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx"),
+                f"supreme_excel_{company_key}_with_patient_and_order_upload.xlsx",
+            ]
+            final_upload_file = next((p for p in candidate_paths if os.path.exists(p)), None)
+
+            if final_upload_file and os.path.exists(final_upload_file):
                 print(f"\n📊 Creating success/failed Excel files for {company_key}...")
                 
                 # First, try to fix failed records with document names
@@ -1166,7 +1213,9 @@ if __name__ == "__main__":
             
             print("\n✅ All steps finished. Check your mail for the reports!")
         else:
-            print(f"❌ Final upload file not found: {final_upload_file}")
-            print(f"   Cannot create success/failed Excel files")
+            print("❌ Final upload file not found in expected locations:")
+            for p in candidate_paths:
+                print(f"   - {p}")
+            print("   Cannot create success/failed Excel files")
     
     print("\n🎉 Pipeline execution complete!")

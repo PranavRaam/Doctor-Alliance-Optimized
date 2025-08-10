@@ -88,6 +88,32 @@ def setup_run_logging(company_key: Optional[str]) -> str:
     print(f"[LOG] Duplicating console output to {logfile}")
     return logfile
 
+
+def safe_write_excel(df: pd.DataFrame, target_path: str) -> str:
+    """Write Excel to target_path, creating directories if needed.
+    On path errors (e.g., missing dir or Windows MAX_PATH), fall back to CWD with same basename.
+    Returns the path actually written.
+    """
+    try:
+        out_dir = os.path.dirname(target_path)
+        if out_dir:
+            try:
+                os.makedirs(out_dir, exist_ok=True)
+            except Exception as e:
+                print(f"[WRITE] ⚠️ Could not create directory {out_dir}: {e}")
+        df.to_excel(target_path, index=False)
+        return target_path
+    except (FileNotFoundError, OSError) as e:
+        try:
+            base_name = os.path.basename(target_path) or "output.xlsx"
+            fallback = base_name
+            print(f"[WRITE] ❗ Falling back to CWD due to path error: {e}. Writing {fallback} in current directory.")
+            df.to_excel(fallback, index=False)
+            return os.path.abspath(fallback)
+        except Exception as e2:
+            print(f"[WRITE] ❌ Failed to write Excel even to CWD: {e2}")
+            raise
+
 def load_company_ids_csv():
     """Load company IDs from CSV file for fallback lookup."""
     global COMPANY_IDS_CSV_DATA
@@ -491,28 +517,50 @@ def clean_payload_for_json(obj):
 
 
 def split_name(full_name):
+    """Robustly split a full name into first, middle, last.
+
+    Handles formats like:
+    - "Last, First [Middle...]"
+    - "First Middle Last"
+    - "First Last"
+
+    Returns (first, middle, last)
+    """
     # Handle NaN and None values
     if pd.isna(full_name) or full_name is None:
         return "", "", ""
-    
+
     # Convert to string if not already
     if not isinstance(full_name, str):
         full_name = str(full_name)
-    
+
     # Clean the name
-    full_name = full_name.strip()
-    if not full_name or full_name.lower() == 'nan':
+    name = full_name.strip()
+    if not name or name.lower() == "nan":
         return "", "", ""
-    
-    parts = full_name.split()
-    if len(parts) == 0:
-        return "", "", ""
-    elif len(parts) == 1:
-        return parts[0], "", ""
-    elif len(parts) == 2:
-        return parts[0], "", parts[1]
-    else:
-        return parts[0], " ".join(parts[1:-1]), parts[-1]
+
+    # Normalize extraneous punctuation around commas
+    name = re.sub(r"\s+,\s*", ", ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+
+    # Format: "Last, First [Middle ...]"
+    if "," in name:
+        last, rest = name.split(",", 1)
+        last = last.strip().strip(",")
+        rest_tokens = [t for t in rest.strip().split(" ") if t]
+        if not rest_tokens:
+            return "", "", last  # only last present
+        first = rest_tokens[0]
+        middle = " ".join(rest_tokens[1:]) if len(rest_tokens) > 1 else ""
+        return first, middle, last
+
+    # Fallback: "First [Middle ...] Last"
+    tokens = [t for t in name.split(" ") if t]
+    if len(tokens) == 1:
+        return tokens[0], "", ""
+    if len(tokens) == 2:
+        return tokens[0], "", tokens[1]
+    return tokens[0], " ".join(tokens[1:-1]), tokens[-1]
 
 
 def get_age(dob):
@@ -524,6 +572,36 @@ def get_age(dob):
         return ""
 
 
+def normalize_dob(dob_value: str) -> str:
+    """Normalize DOB to YYYY-MM-DD for consistent matching and payloads."""
+    try:
+        if pd.isna(dob_value) or dob_value is None:
+            return ""
+        dt = pd.to_datetime(str(dob_value).strip(), errors="coerce")
+        if pd.isna(dt):
+            return ""
+        return dt.strftime("%Y-%m-%d")
+    except Exception:
+        return ""
+
+
+def format_date_mmddyyyy(date_value) -> str:
+    """Format a date-like value to MM/dd/yyyy for API consumption.
+
+    Accepts strings in various formats, pandas Timestamps, datetime/date.
+    Returns empty string on failure.
+    """
+    try:
+        if date_value is None or (isinstance(date_value, float) and pd.isna(date_value)):
+            return ""
+        dt = pd.to_datetime(str(date_value).strip(), errors="coerce")
+        if pd.isna(dt):
+            return ""
+        return dt.strftime("%m/%d/%Y")
+    except Exception:
+        return ""
+
+
 def search_patientid_by_name_dob(patients, name, dob):
     if not isinstance(name, str):
         name = "" if pd.isna(name) else str(name)
@@ -531,6 +609,7 @@ def search_patientid_by_name_dob(patients, name, dob):
         dob = "" if pd.isna(dob) else str(dob)
     name = name.strip()
     dob = str(dob).strip()
+    dob_norm = normalize_dob(dob)
 
     def normalize_name_parts(n: str) -> tuple[str, str]:
         # Accept "LAST, FIRST" or "FIRST LAST [MIDDLE...]"
@@ -564,7 +643,8 @@ def search_patientid_by_name_dob(patients, name, dob):
         p_dob = (agency.get("dob", "") or "").strip()
         p_first, p_last = normalize_name_parts(f"{pfname} {plname}")
         # Match if first+last equal (case-insensitive) AND dob equal
-        if p_first == name_first and p_last == name_last and p_dob == dob:
+        p_dob_norm = normalize_dob(p_dob)
+        if p_first == name_first and p_last == name_last and p_dob_norm == dob_norm and dob_norm != "":
             return p.get("id", "")
     return ""
 
@@ -609,8 +689,18 @@ def get_order_id_with_fallback(row):
         cleaned_order = clean_order_number_for_upload(order_id)
         if cleaned_order:
             return cleaned_order
-    
-    # Fallback to NOF-{DocumentID}
+
+    # Prefer fallback to NOF-{DABackOfficeID} if available
+    daback_id = clean_id(
+        row.get("DABackOfficeID", "")
+        or row.get("daBackofficeID", "")
+        or row.get("daBackOfficeID", "")
+    )
+    if daback_id:
+        fallback_order = f"NOF{daback_id}"
+        return clean_order_number_for_upload(fallback_order)
+
+    # Else fallback to NOF-{DocumentID}
     doc_id = clean_id(row.get("docId", row.get("Document ID", "")))
     if doc_id:
         fallback_order = f"NOF{doc_id}"  # Remove hyphen for pure alphanumeric
@@ -792,7 +882,7 @@ def build_patient_payload(row, company_key=None):
     
     # Handle both patientName and patient_name fields
     patient_name = row.get("patientName", "") or row.get("patient_name", "")
-    
+
     # If patient name is empty, try other possible columns
     if not patient_name or (isinstance(patient_name, str) and patient_name.strip() == "") or pd.isna(patient_name):
         name_columns = ['patient_name', 'patientName', 'name', 'full_name', 'patient_full_name']
@@ -801,11 +891,65 @@ def build_patient_payload(row, company_key=None):
                 patient_name = str(row[col]).strip()
                 if patient_name and patient_name.lower() != 'nan':
                     break
+
+    # If still empty, try resolving from document API first, then from PDF text (CLIENT: ...)
+    if not patient_name or (isinstance(patient_name, str) and patient_name.strip() == "") or pd.isna(patient_name):
+        try:
+            # 1) Try patientName from document API value
+            doc_id_try = row.get('Document ID') or row.get('docId')
+            if doc_id_try:
+                data = get_document_data(str(doc_id_try))
+                if data and 'value' in data:
+                    value_obj = data['value']
+                    if isinstance(value_obj, str):
+                        try:
+                            value_obj = json.loads(value_obj)
+                        except Exception:
+                            value_obj = {}
+                    if isinstance(value_obj, dict):
+                        api_patient_name = value_obj.get('patientName') or value_obj.get('patient_name')
+                        if isinstance(api_patient_name, str) and api_patient_name.strip():
+                            patient_name = api_patient_name.strip()
+                        # 2) Try PDF buffer -> text -> regex CLIENT: LAST, FIRST
+                        if (not patient_name) and value_obj.get('documentBuffer'):
+                            try:
+                                from text_extraction import extract_text_from_pdf
+                            except Exception:
+                                extract_text_from_pdf = None
+                            if extract_text_from_pdf:
+                                try:
+                                    pdf_bytes = base64.b64decode(value_obj['documentBuffer'])
+                                    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tf:
+                                        tf.write(pdf_bytes)
+                                        temp_path = tf.name
+                                    try:
+                                        text = extract_text_from_pdf(temp_path)
+                                    finally:
+                                        try:
+                                            os.unlink(temp_path)
+                                        except Exception:
+                                            pass
+                                    # Regex for CLIENT: LAST, FIRST [M]
+                                    import re as _re
+                                    m = _re.search(r"CLIENT\s*:\s*([^\n\r]+)", text or "", _re.IGNORECASE)
+                                    if m:
+                                        candidate = m.group(1).strip()
+                                        # Trim trailing labels that often follow name on same line
+                                        candidate = candidate.split("  ")[0].split("   ")[0]
+                                        # Safeguard against capturing addresses/phones
+                                        if ("," in candidate) and (len(candidate.split(",")[0].strip()) >= 2):
+                                            patient_name = candidate
+                                except Exception:
+                                    pass
+        except Exception:
+            pass
     
     fname, mname, lname = split_name(patient_name)
     debug_log("PATIENT_PAYLOAD", f"Name split -> fname='{fname}' mname='{mname}' lname='{lname}'")
-    age = get_age(row.get("dob"))
-    debug_log("PATIENT_PAYLOAD", f"DOB='{row.get('dob','')}' -> age='{age}'")
+    dob_norm_for_matching = normalize_dob(row.get("dob"))  # YYYY-MM-DD for internal matching
+    dob_api_format = format_date_mmddyyyy(row.get("dob"))  # MM/dd/YYYY for API
+    age = get_age(dob_norm_for_matching or row.get("dob"))
+    debug_log("PATIENT_PAYLOAD", f"DOB='{row.get('dob','')}' -> normalized='{dob_norm_for_matching}' api_format='{dob_api_format}' age='{age}'")
     state, city, zipc = parse_address(row.get("address", ""))
     debug_log("PATIENT_PAYLOAD", f"Address parsed -> state='{state}' city='{city}' zip='{zipc}'")
     
@@ -873,7 +1017,7 @@ def build_patient_payload(row, company_key=None):
         "patientFName": fname,
         "patientMName": mname,
         "patientLName": lname,
-        "dob": row.get("dob", ""),
+        "dob": dob_api_format,
         "age": age,
         "patientSex": standardize_patient_sex(row.get("patient_sex", "")),
         "patientStatus": "Active",
@@ -1175,6 +1319,9 @@ def try_mark_patient_exist_immediately(df: pd.DataFrame, idx: int) -> bool:
         dabackid = clean_id(row.get('DABackOfficeID', ''))
         excel_name = row.get('patientName', '') or row.get('patient_name', '')
         excel_dob = str(row.get('dob', '') or '').strip()
+        excel_dob_norm = normalize_dob(excel_dob)
+        # Extract ZIP from row address for fallback
+        _, _, row_zip = parse_address(row.get('address', ''))
 
         # 1) Strong match by MRN or DABackOfficeID
         for p in patients:
@@ -1197,15 +1344,25 @@ def try_mark_patient_exist_immediately(df: pd.DataFrame, idx: int) -> bool:
                 print(f"  [DUP-RESOLVE] Matched patient by MRN/DABackOfficeID. Set PatientExist=True for row {idx}")
                 return True
 
-        # 2) Fallback: match by normalized FIRST/LAST + DOB
+        # 2) Fallback: match by normalized FIRST/LAST + DOB (primary) or ZIP (secondary when DOB not available)
         name_first, name_last = _normalize_name_pair(excel_name)
         for p in patients:
             agency = p.get('agencyInfo', {})
             pfname = (agency.get('patientFName', '') or '').strip()
             plname = (agency.get('patientLName', '') or '').strip()
             p_dob = (agency.get('dob', '') or '').strip()
+            p_dob_norm = normalize_dob(p_dob)
             p_first, p_last = _normalize_name_pair(f"{pfname} {plname}")
-            if p_first == name_first and p_last == name_last and p_dob == excel_dob:
+            # ZIP fallback
+            p_zip = (agency.get('zip', '') or '').strip()
+            if not p_zip and agency.get('patientAddress'):
+                _, _, p_zip = parse_address(agency.get('patientAddress', ''))
+
+            names_match = (p_first == name_first and p_last == name_last)
+            dob_match = (p_dob_norm == excel_dob_norm and excel_dob_norm != "")
+            zip_match = (p_zip and row_zip and p_zip == row_zip)
+
+            if names_match and (dob_match or (not excel_dob_norm and zip_match)):
                 if 'patientid' in df.columns and df['patientid'].dtype == 'float64':
                     df['patientid'] = df['patientid'].astype('object')
                 df.at[idx, 'patientid'] = p.get('id', '')
@@ -1302,6 +1459,38 @@ def build_order_payload(row, patients=None, company_key=None):
             else:
                 print(f"  ⚠️  Could not find company ID for order: {company_name}")
     
+    # Resolve document name robustly (use row value, else fetch from API)
+    doc_name = str(row.get("documentType", "") or row.get("DocumentName", "")).strip()
+    if not doc_name:
+        try:
+            doc_id_fallback = row.get("Document ID") or row.get("docId")
+            if doc_id_fallback:
+                data = get_document_data(str(doc_id_fallback))
+                if data and 'value' in data:
+                    value_obj = data['value']
+                    # Sometimes 'value' comes as JSON string
+                    if isinstance(value_obj, str):
+                        try:
+                            value_obj = json.loads(value_obj)
+                        except Exception:
+                            value_obj = {}
+                    if isinstance(value_obj, dict) and 'documentType' in value_obj:
+                        dt = value_obj['documentType']
+                        if isinstance(dt, dict):
+                            doc_name = dt.get('displayName') or dt.get('code') or ""
+                        elif isinstance(dt, str):
+                            doc_name = dt
+                    # Final cleanup
+                    doc_name = str(doc_name or "").strip()
+                    if not doc_name:
+                        print(f"  ⚠️  Could not resolve document name for doc {doc_id_fallback}")
+        except Exception as e:
+            print(f"  ⚠️  Error resolving document name on the fly: {e}")
+
+    # Normalize specific variants
+    if doc_name.upper() == "OTHER_SIGNABLE":
+        doc_name = "OTHER"
+
     order_payload = {
         "orderNo": get_order_id_with_fallback(row),  # Uses enhanced cleaning
         "orderDate": get_order_date_with_fallback(row),
@@ -1321,7 +1510,7 @@ def build_order_payload(row, patients=None, company_key=None):
         "uploadedSignedPgOrderStatus": True,
         "cpoMinutes": "",
         "orderUrl": "",
-        "documentName": row.get("documentType", ""),
+        "documentName": doc_name,
         "ehr": "",
         "account": "",
         "location": "",
@@ -1377,6 +1566,29 @@ def get_document_data(doc_id):
     except Exception as e:
         print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")
         return None
+
+
+def fetch_document_data_with_retry(doc_id: str, attempts: int = 3, delay_seconds: int = 2):
+    """Fetch document data and retry until a non-empty documentBuffer is available or attempts exhausted."""
+    last_data = None
+    for attempt in range(1, attempts + 1):
+        data = get_document_data(doc_id)
+        last_data = data
+        try:
+            if data and isinstance(data, dict) and 'value' in data:
+                value_obj = data['value']
+                if isinstance(value_obj, str):
+                    try:
+                        value_obj = json.loads(value_obj)
+                    except Exception:
+                        value_obj = None
+                if isinstance(value_obj, dict) and value_obj.get('documentBuffer'):
+                    return data
+        except Exception:
+            pass
+        if attempt < attempts:
+            time.sleep(delay_seconds)
+    return last_data
 
 def create_order(row, patients=None, company_key=None):
     payload = build_order_payload(row, patients, company_key)
@@ -1437,7 +1649,7 @@ def create_order(row, patients=None, company_key=None):
                             print(
                                 f"  [PDF_UPLOAD] Starting PDF upload for Document ID: {doc_id}"
                             )
-                            doc_data = get_document_data(doc_id)
+                            doc_data = fetch_document_data_with_retry(doc_id, attempts=3, delay_seconds=2)
                             if doc_data:
                                 pdf_success, pdf_remark = upload_pdf_from_document_data(
                                     doc_data, order_guid
@@ -1585,14 +1797,21 @@ def upload_pdf_to_order(document_buffer, order_guid):
 def upload_pdf_from_document_data(doc_data, order_guid):
     try:
         # Extract PDF buffer from document data
-        if 'value' in doc_data and isinstance(doc_data['value'], dict):
+        if 'value' in doc_data:
             value_obj = doc_data['value']
-            if 'documentBuffer' in value_obj and value_obj['documentBuffer']:
-                return upload_pdf_to_order(value_obj['documentBuffer'], order_guid)
+            if isinstance(value_obj, str):
+                try:
+                    value_obj = json.loads(value_obj)
+                except Exception:
+                    return False, "Document value is a non-parsable string"
+            if isinstance(value_obj, dict):
+                if 'documentBuffer' in value_obj and value_obj['documentBuffer']:
+                    return upload_pdf_to_order(value_obj['documentBuffer'], order_guid)
+                else:
+                    return False, "No documentBuffer found in document data"
             else:
-                return False, "No documentBuffer found in document data"
-        else:
-            return False, "Invalid document data structure"
+                return False, "Invalid document value type"
+        return False, "Invalid document data structure"
             
     except Exception as e:
         print(f"  [PDF_UPLOAD] Error processing document data for Order {order_guid}: {e}")
@@ -1733,7 +1952,7 @@ def main():
     # Refill patient info and update PatientExist if found
     df = refill_patient_info(df)
     output_file_with_patients = input_file.replace('.xlsx', '_with_patient_upload.xlsx')
-    df.to_excel(output_file_with_patients, index=False)
+    output_file_with_patients = safe_write_excel(df, output_file_with_patients)
     print(f"✅ Created patient upload file: {output_file_with_patients}")
     print(f"   Total records: {len(df)}")
     print(f"   Patients created: {len(created_patients)}")
@@ -1772,7 +1991,7 @@ def main():
 
     # Refill patient info again after second pass
     df = refill_patient_info(df)
-    df.to_excel(output_file_with_patients, index=False)
+    output_file_with_patients = safe_write_excel(df, output_file_with_patients)
 
     # Download patients once for episode lookup
     try:
@@ -1823,7 +2042,7 @@ def main():
             print(f"[ORDER][Row {idx}] Skipped order creation (PatientExist=False)")
 
     output_file_final = input_file.replace('.xlsx', '_with_patient_and_order_upload.xlsx')
-    df.to_excel(output_file_final, index=False)
+    output_file_final = safe_write_excel(df, output_file_final)
     print(f"✅ Created final upload file: {output_file_final}")
     print(f"   Total records: {len(df)}")
     print(f"   Orders processed: {len(df[df['ORDERUPLOAD_STATUS'].isin(['TRUE', 'FALSE'])])}")
