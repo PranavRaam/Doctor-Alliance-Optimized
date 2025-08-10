@@ -86,11 +86,11 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "americare_medical_group",
-    "texas_infectious_disease_institute",
-    "atrium_housecall",
-    "traveling_doctors",
-    # NOTE: 'preferred_primary_care' not included because PG company ID was not provided
+    "housecall_md",
+    "los_cerros",
+    "paragon_medical_associates",
+    "rocky_mountain",
+    "brownfield_family_physicians",
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -135,29 +135,35 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "americare_medical_group": {
-        "name": "Americare Medical Group",
-        "pg_company_id": "c147e1f1-ccdb-4e22-8526-60a93ad4a678",
-        "helper_id": "ihelperph11203",
-        "description": "Americare Medical Group"
+    "housecall_md": {
+        "name": "HousecallMD",
+        "pg_company_id": "bc3a6a28-dd03-4cf3-95ba-2c5976619818",
+        "helper_id": "dhelperph621",
+        "description": "HousecallMD"
     },
-    "texas_infectious_disease_institute": {
-        "name": "Texas Infectious Disease Institute",
-        "pg_company_id": "a3b8a6c5-db61-42b4-8eee-64e1098c0336",
-        "helper_id": "ihelperph32413",
-        "description": "Texas Infectious Disease Institute"
+    "los_cerros": {
+        "name": "Los Cerros",
+        "pg_company_id": "9d8d2765-0b51-489b-868c-a217b4283c62",
+        "helper_id": "ihelperph7221",
+        "description": "Los Cerros"
     },
-    "atrium_housecall": {
-        "name": "Atrium HouseCall",
-        "pg_company_id": "bb158a70-b51a-4008-9600-e94484485b61",
-        "helper_id": "ihelperph10221",
-        "description": "Atrium HouseCall"
+    "paragon_medical_associates": {
+        "name": "Paragon Medical Associates",
+        "pg_company_id": "84e35202-3422-4de4-b5cb-efe5461b1312",
+        "helper_id": "ihelperph4215",
+        "description": "Paragon Medical Associates"
     },
-    "traveling_doctors": {
-        "name": "Traveling at doctors",
-        "pg_company_id": "8cd766e5-6e19-492e-a1a9-6595d81d20ee",
-        "helper_id": "ihelperph525",
-        "description": "Traveling at doctors"
+    "rocky_mountain": {
+        "name": "Rocky Mountain",
+        "pg_company_id": "4e594a84-7340-469e-82fb-b41b91930db5",
+        "helper_id": "ihelperph4215",
+        "description": "Rocky Mountain"
+    },
+    "brownfield_family_physicians": {
+        "name": "Brownfield Family Physicians",
+        "pg_company_id": "b62429db-642c-4fdb-9bf3-29e381d20e22",
+        "helper_id": "dallianceph7218",
+        "description": "Brownfield Family Physicians"
     },
 }
 
