@@ -86,12 +86,11 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "doctors_at_home_mary_snellings_md",
-    "morning_star_healthcare_services_pa",
-    "spectrum_community_first_primary_care",
-    "royal_vp_llc",
-    "citywide_housecalls_llc",
-    "prime_md_geriatrics",
+    "americare_medical_group",
+    "texas_infectious_disease_institute",
+    "atrium_housecall",
+    "traveling_doctors",
+    # NOTE: 'preferred_primary_care' not included because PG company ID was not provided
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -136,41 +135,29 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "doctors_at_home_mary_snellings_md": {
-        "name": "Doctors at Home - Mary Snellings MD",
-        "pg_company_id": "de385408-1cd6-46a2-be58-ff4b8eeeddc7",
-        "helper_id": "handrewph27",
-        "description": "Doctors at Home - Mary Snellings MD"
+    "americare_medical_group": {
+        "name": "Americare Medical Group",
+        "pg_company_id": "c147e1f1-ccdb-4e22-8526-60a93ad4a678",
+        "helper_id": "ihelperph11203",
+        "description": "Americare Medical Group"
     },
-    "morning_star_healthcare_services_pa": {
-        "name": "Morning Star Healthcare Services PA",
-        "pg_company_id": "9c9bd7d0-bd70-4197-98f7-a77b4e781ab1",
-        "helper_id": "ihelperph722",
-        "description": "Morning Star Healthcare Services PA"
+    "texas_infectious_disease_institute": {
+        "name": "Texas Infectious Disease Institute",
+        "pg_company_id": "a3b8a6c5-db61-42b4-8eee-64e1098c0336",
+        "helper_id": "ihelperph32413",
+        "description": "Texas Infectious Disease Institute"
     },
-    "spectrum_community_first_primary_care": {
-        "name": "Spectrum (Community First Primary Care)",
-        "pg_company_id": "6f4180aa-b472-4d5c-b7aa-98e06bb4fd6f",
-        "helper_id": "ihelperph12232",
-        "description": "Spectrum (Community First Primary Care)"
+    "atrium_housecall": {
+        "name": "Atrium HouseCall",
+        "pg_company_id": "bb158a70-b51a-4008-9600-e94484485b61",
+        "helper_id": "ihelperph10221",
+        "description": "Atrium HouseCall"
     },
-    "royal_vp_llc": {
-        "name": "Royal V.P., LLC",
-        "pg_company_id": "eaba3c1c-217f-458d-aa2f-172e3ffbab1e",
-        "helper_id": "ihelperph4214",
-        "description": "Royal V.P., LLC"
-    },
-    "citywide_housecalls_llc": {
-        "name": "CityWide Housecalls, LLC",
-        "pg_company_id": "534ca7a5-2db0-4c75-8988-89f73064c5e5",
-        "helper_id": "ihelperph1021",
-        "description": "CityWide Housecalls, LLC"
-    },
-    "prime_md_geriatrics": {
-        "name": "Prime MD Geriatrics",
-        "pg_company_id": "ef8847e7-ed2a-4dc0-a08b-49b1d6b2b5f7",
-        "helper_id": "ihelperph22476",
-        "description": "Prime MD Geriatrics"
+    "traveling_doctors": {
+        "name": "Traveling at doctors",
+        "pg_company_id": "8cd766e5-6e19-492e-a1a9-6595d81d20ee",
+        "helper_id": "ihelperph525",
+        "description": "Traveling at doctors"
     },
 }
 
