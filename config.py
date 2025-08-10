@@ -86,11 +86,11 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "housecall_md",
-    "los_cerros",
-    "paragon_medical_associates",
-    "rocky_mountain",
-    "brownfield_family_physicians",
+    "prima_care",
+    "hawthorn",
+    "trucare",
+    "acohealth",
+    "carney_hospital",
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -135,35 +135,35 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "housecall_md": {
-        "name": "HousecallMD",
-        "pg_company_id": "bc3a6a28-dd03-4cf3-95ba-2c5976619818",
-        "helper_id": "dhelperph621",
-        "description": "HousecallMD"
+    "prima_care": {
+        "name": "Prima Care",
+        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
+        "helper_id": "ihelperph6233",
+        "description": "Prima Care"
     },
-    "los_cerros": {
-        "name": "Los Cerros",
-        "pg_company_id": "9d8d2765-0b51-489b-868c-a217b4283c62",
-        "helper_id": "ihelperph7221",
-        "description": "Los Cerros"
+    "hawthorn": {
+        "name": "Hawthorn",
+        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
+        "helper_id": "ihelperph7243",
+        "description": "Hawthorn"
     },
-    "paragon_medical_associates": {
-        "name": "Paragon Medical Associates",
-        "pg_company_id": "84e35202-3422-4de4-b5cb-efe5461b1312",
-        "helper_id": "ihelperph4215",
-        "description": "Paragon Medical Associates"
+    "trucare": {
+        "name": "Trucare",
+        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
+        "helper_id": "ihelperph7244",
+        "description": "Trucare"
     },
-    "rocky_mountain": {
-        "name": "Rocky Mountain",
-        "pg_company_id": "4e594a84-7340-469e-82fb-b41b91930db5",
-        "helper_id": "ihelperph4215",
-        "description": "Rocky Mountain"
+    "acohealth": {
+        "name": "AcoHealth",
+        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
+        "helper_id": "dallianceph125",
+        "description": "AcoHealth"
     },
-    "brownfield_family_physicians": {
-        "name": "Brownfield Family Physicians",
-        "pg_company_id": "b62429db-642c-4fdb-9bf3-29e381d20e22",
-        "helper_id": "dallianceph7218",
-        "description": "Brownfield Family Physicians"
+    "carney_hospital": {
+        "name": "Carney Hospital",
+        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
+        "helper_id": "ihelperph6231",
+        "description": "Carney Hospital"
     },
 }
 
