@@ -86,11 +86,14 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "prima_care",
-    "hawthorn",
-    "trucare",
-    "acohealth",
+    "dr_resil_claude",
     "carney_hospital",
+    "health_quality_primary_care",
+    "caring",
+    "bestself_primary_care",
+    "care_dimension",
+    "riverside_medical_group",
+    "family_medical_associates",
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -135,35 +138,48 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "prima_care": {
-        "name": "Prima Care",
-        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
-        "helper_id": "ihelperph6233",
-        "description": "Prima Care"
+
+    "dr_resil_claude": {
+        "name": "Dr. Resil Claude",
+        "pg_company_id": "042a7278-25b6-4a9b-a18d-1981ab0daf11",
+        "helper_id": "ihelperph8244",
+        "description": "Dr. Resil Claude"
     },
-    "hawthorn": {
-        "name": "Hawthorn",
-        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
-        "helper_id": "ihelperph7243",
-        "description": "Hawthorn"
+    "health_quality_primary_care": {
+        "name": "Health Quality Primary Care",
+        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
+        "helper_id": "ihelperph7245",
+        "description": "Health Quality Primary Care"
     },
-    "trucare": {
-        "name": "Trucare",
-        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
-        "helper_id": "ihelperph7244",
-        "description": "Trucare"
+    "caring": {
+        "name": "Caring",
+        "pg_company_id": "03657233-8677-4c81-92c8-c19c3f64fc84",
+        "helper_id": "ihelperph524",
+        "description": "Caring"
     },
-    "acohealth": {
-        "name": "AcoHealth",
-        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
-        "helper_id": "dallianceph125",
-        "description": "AcoHealth"
+    "bestself_primary_care": {
+        "name": "BestSelf Primary Care",
+        "pg_company_id": "c5c1a894-08ac-4cb9-bfd1-0ad1384b890e",
+        "helper_id": "ihelperph125",
+        "description": "BestSelf Primary Care"
     },
-    "carney_hospital": {
-        "name": "Carney Hospital",
-        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
-        "helper_id": "ihelperph6231",
-        "description": "Carney Hospital"
+    "care_dimension": {
+        "name": "CARE DIMENSION",
+        "pg_company_id": "da7d760b-e3a8-4c92-9006-eca464ce8e1e",
+        "helper_id": "ihelperph225",
+        "description": "CARE DIMENSION"
+    },
+    "riverside_medical_group": {
+        "name": "Riverside Medical Group",
+        "pg_company_id": "ca5314fe-cf71-42e5-9482-81507666328c",
+        "helper_id": "ihelperph2232",
+        "description": "Riverside Medical Group"
+    },
+    "family_medical_associates": {
+        "name": "Family medical associates",
+        "pg_company_id": "38511e46-cc15-4856-92bc-718c5ec56cbf",
+        "helper_id": "ihelperph5236",
+        "description": "Family medical associates"
     },
 }
 
