@@ -86,14 +86,18 @@ DATE_RANGE = {
 
 # Multiple companies to process (leave empty list for single company)
 MULTIPLE_COMPANIES = [
-    "dr_resil_claude",
-    "carney_hospital",
-    "health_quality_primary_care",
-    "caring",
-    "bestself_primary_care",
-    "care_dimension",
-    "riverside_medical_group",
-    "family_medical_associates",
+    "upham",
+    "orthopaedic_specialists_of_massachusetts",
+    "saint_elizabeth_medical_centre",
+    "lowell",
+    "associates_in_internal_medicine_norwood",
+    "northeast_medical_group",
+    "new_bedford_internal_medicine_and_geriatrics",
+    "boston_senior_medicine",
+    "bidmc",
+    "bowdoin",
+    "neurology_center_of_new_england_pc",
+    "brockton",
 ]
 
 # If MULTIPLE_COMPANIES is empty, use the active company
@@ -138,77 +142,107 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-    "prima_care": {
-        "name": "Prima Care",
-        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
-        "helper_id": "ihelperph6233",
-        "description": "Prima Care"
+    "upham": {
+        "name": "Upham",
+        "pg_company_id": "acfcd97b-0533-4c95-9f5d-4744c5f9c64c",
+        "helper_id": "ihelperph2236",
+        "description": "Upham"
     },
-    "hawthorn": {
-        "name": "Hawthorn",
-        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
-        "helper_id": "ihelperph7243",
-        "description": "Hawthorn"
+    "orthopaedic_specialists_of_massachusetts": {
+        "name": "Orthopaedic Specialists of Massachusetts",
+        "pg_company_id": "cdabc85a-9c13-4fae-9dbf-d2e22e12f466",
+        "helper_id": "ihelperph2234",
+        "description": "Orthopaedic Specialists of Massachusetts"
     },
-    "trucare": {
-        "name": "Trucare",
-        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
-        "helper_id": "ihelperph7244",
-        "description": "Trucare"
+    "medical_associates_of_new_england_llc": {
+        "name": "Medical Associates Of New England LLC",
+        "pg_company_id": "",
+        "helper_id": "ihelperph10222",
+        "description": "Medical Associates Of New England LLC (PG company ID needed)"
     },
-    "acohealth": {
-        "name": "AcoHealth",
-        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
-        "helper_id": "dallianceph125",
-        "description": "AcoHealth"
+    "saint_elizabeth_medical_centre": {
+        "name": "Saint Elizabeth Medical Centre",
+        "pg_company_id": "ceece087-093e-421d-92c0-b1aff03405e6",
+        "helper_id": "ihelperph3233",
+        "description": "Saint Elizabeth Medical Centre"
     },
-    "carney_hospital": {
-        "name": "Carney Hospital",
-        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
-        "helper_id": "ihelperph6231",
-        "description": "Carney Hospital"
+    "lowell": {
+        "name": "Lowell",
+        "pg_company_id": "b92e8240-61f7-475f-8cbe-f1442b6389b5",
+        "helper_id": "ihelperph22499",
+        "description": "Lowell"
     },
-    "dr_resil_claude": {
-        "name": "Dr. Resil Claude",
-        "pg_company_id": "042a7278-25b6-4a9b-a18d-1981ab0daf11",
-        "helper_id": "ihelperph8244",
-        "description": "Dr. Resil Claude"
+    "associates_in_internal_medicine_norwood": {
+        "name": "Associates in Internal Medicine - Norwood",
+        "pg_company_id": "0245a889-31da-445b-9f1e-51f97ea6d37e",
+        "helper_id": "ihelperph5237",
+        "description": "Associates in Internal Medicine - Norwood"
     },
-    "health_quality_primary_care": {
-        "name": "Health Quality Primary Care",
-        "pg_company_id": "f0d98fdc-c432-4e05-b75e-af146aa0e27d",
-        "helper_id": "ihelperph7245",
-        "description": "Health Quality Primary Care"
+    "northeast_medical_group": {
+        "name": "Northeast Medical Group",
+        "pg_company_id": "e7ca529f-bc5e-4706-b61f-0f682a3f6e23",
+        "helper_id": "ihelperph325",
+        "description": "Northeast Medical Group"
     },
-    "caring": {
-        "name": "Caring",
-        "pg_company_id": "03657233-8677-4c81-92c8-c19c3f64fc84",
-        "helper_id": "ihelperph524",
-        "description": "Caring"
+    "new_bedford_internal_medicine_and_geriatrics": {
+        "name": "New Bedford Internal Medicine and Geriatrics",
+        "pg_company_id": "716be0f8-9710-4fee-90b2-09dc30f229c9",
+        "helper_id": "ihelperph10231",
+        "description": "New Bedford Internal Medicine and Geriatrics"
     },
-    "bestself_primary_care": {
-        "name": "BestSelf Primary Care",
-        "pg_company_id": "c5c1a894-08ac-4cb9-bfd1-0ad1384b890e",
-        "helper_id": "ihelperph125",
-        "description": "BestSelf Primary Care"
+    "renaissance_primary_care": {
+        "name": "Renaissance Primary Care",
+        "pg_company_id": "",
+        "helper_id": "ihelperph1251",
+        "description": "Renaissance Primary Care (PG company ID needed)"
     },
-    "care_dimension": {
-        "name": "CARE DIMENSION",
-        "pg_company_id": "da7d760b-e3a8-4c92-9006-eca464ce8e1e",
-        "helper_id": "ihelperph225",
-        "description": "CARE DIMENSION"
+    "hyde_park_health_associates": {
+        "name": "Hyde Park Health Associates",
+        "pg_company_id": "",
+        "helper_id": "ihelperph10222",
+        "description": "Hyde Park Health Associates (PG company ID needed)"
     },
-    "riverside_medical_group": {
-        "name": "Riverside Medical Group",
-        "pg_company_id": "ca5314fe-cf71-42e5-9482-81507666328c",
-        "helper_id": "ihelperph2232",
-        "description": "Riverside Medical Group"
+    "boston_senior_medicine": {
+        "name": "Boston Senior Medicine",
+        "pg_company_id": "61e6dd93-452b-41b0-aca4-8d67fbe71e78",
+        "helper_id": "ihelperph523",
+        "description": "Boston Senior Medicine"
     },
-    "family_medical_associates": {
-        "name": "Family medical associates",
-        "pg_company_id": "38511e46-cc15-4856-92bc-718c5ec56cbf",
-        "helper_id": "ihelperph5236",
-        "description": "Family medical associates"
+    "bidmc": {
+        "name": "BIDMC",
+        "pg_company_id": "0c2c11e0-ce99-4282-9172-7d06c7a12dda",
+        "helper_id": "ihelperph112326",
+        "description": "BIDMC"
+    },
+    "bowdoin": {
+        "name": "Bowdoin",
+        "pg_company_id": "5f173aaa-338d-4510-9d2d-c856d8771aa8",
+        "helper_id": "ihelperph2233",
+        "description": "Bowdoin"
+    },
+    "smg": {
+        "name": "SMG",
+        "pg_company_id": "",
+        "helper_id": "ihelperph7242",
+        "description": "SMG (PG company ID needed)"
+    },
+    "st_elizabeth_medical_center_orthopedics": {
+        "name": "St. Elizabeth Medical Center Orthopedics",
+        "pg_company_id": "",
+        "helper_id": "ihelperph5238",
+        "description": "St. Elizabeth Medical Center Orthopedics (PG company ID needed)"
+    },
+    "neurology_center_of_new_england_pc": {
+        "name": "Neurology Center Of New England, PC",
+        "pg_company_id": "c0926069-e956-4ed5-8775-1f462f6cff36",
+        "helper_id": "ihelperph7247",
+        "description": "Neurology Center Of New England, PC"
+    },
+    "brockton": {
+        "name": "Brockton",
+        "pg_company_id": "d80b9f6a-d8e8-42bc-8db7-043675a5b86b",
+        "helper_id": "ihelperph4213",
+        "description": "Brockton"
     },
     "carney_hospital": {
         "name": "Carney Hospital",
