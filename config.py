@@ -138,7 +138,36 @@ PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
 
 # Company configurations with their pg company IDs and helper IDs
 COMPANIES = {
-
+    "prima_care": {
+        "name": "Prima Care",
+        "pg_company_id": "d10f46ad-225d-4ba2-882c-149521fcead5",
+        "helper_id": "ihelperph6233",
+        "description": "Prima Care"
+    },
+    "hawthorn": {
+        "name": "Hawthorn",
+        "pg_company_id": "4b51c8b7-c8c4-4779-808c-038c057f026b",
+        "helper_id": "ihelperph7243",
+        "description": "Hawthorn"
+    },
+    "trucare": {
+        "name": "Trucare",
+        "pg_company_id": "7c40b6f6-5874-4ab8-96d4-e03b0d2f8201",
+        "helper_id": "ihelperph7244",
+        "description": "Trucare"
+    },
+    "acohealth": {
+        "name": "AcoHealth",
+        "pg_company_id": "d074279d-8ff6-47ab-b340-04f21c0f587e",
+        "helper_id": "dallianceph125",
+        "description": "AcoHealth"
+    },
+    "carney_hospital": {
+        "name": "Carney Hospital",
+        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
+        "helper_id": "ihelperph6231",
+        "description": "Carney Hospital"
+    },
     "dr_resil_claude": {
         "name": "Dr. Resil Claude",
         "pg_company_id": "042a7278-25b6-4a9b-a18d-1981ab0daf11",
@@ -181,6 +210,13 @@ COMPANIES = {
         "helper_id": "ihelperph5236",
         "description": "Family medical associates"
     },
+    "carney_hospital": {
+        "name": "Carney Hospital",
+        "pg_company_id": "14761337-cd76-4e76-8bdd-18a96465624e",
+        "helper_id": "ihelperph6231",
+        "description": "Carney Hospital"
+    },
+
 }
 
 
