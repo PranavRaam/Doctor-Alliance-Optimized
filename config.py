@@ -80,7 +80,7 @@ FIELD_EXTRACTION_CONFIG = {
 
 # Date range for processing (MM/DD/YYYY format)
 DATE_RANGE = {
-    "start_date": "08/01/2025",
+    "start_date": "06/01/2025",
     "end_date": "08/18/2025",
 }
 
@@ -648,7 +648,7 @@ COMPANIES = {
 DEFAULT_COMPANY = ""
 
 # Active company setting - change this to switch companies  
-ACTIVE_COMPANY = "clinic_central_oklahoma"  # The Clinic @ Central Oklahoma Family Medical Center
+ACTIVE_COMPANY = "hawthorn"  # Hawthorn
 
 # Function to get companies to process
 def get_companies_to_process():
