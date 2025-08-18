@@ -1315,16 +1315,49 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         extract_doc_ids_from_inbox.company_key = company_key
         extract_doc_ids_from_signed.company_key = company_key
         
-        inbox_doc_ids, inbox_doc_types = extract_doc_ids_from_inbox(driver, start_date, end_date)
+        # Import extraction source configuration functions
+        from config import should_extract_from_inbox, should_extract_from_signed, get_extraction_sources
         
-        # Signed
-        log_console("🔍 Signed docs extraction")
-        signed_doc_ids, signed_doc_types = extract_doc_ids_from_signed(driver, start_date, end_date)
+        # Check which sources to extract from
+        extract_inbox = should_extract_from_inbox(company_key)
+        extract_signed = should_extract_from_signed(company_key)
+        extraction_sources = get_extraction_sources(company_key)
+        
+        log_console(f"📋 Extraction configuration for {company_key or 'default'}: {extraction_sources}")
+        
+        inbox_doc_ids, inbox_doc_types = [], {}
+        signed_doc_ids, signed_doc_types = [], {}
+        
+        # Conditional extraction based on configuration
+        if extract_inbox:
+            log_console("🔍 Inbox extraction - ENABLED")
+            inbox_doc_ids, inbox_doc_types = extract_doc_ids_from_inbox(driver, start_date, end_date)
+        else:
+            log_console("🔍 Inbox extraction - SKIPPED (disabled in config)")
+        
+        if extract_signed:
+            log_console("🔍 Signed docs extraction - ENABLED")
+            signed_doc_ids, signed_doc_types = extract_doc_ids_from_signed(driver, start_date, end_date)
+        else:
+            log_console("🔍 Signed docs extraction - SKIPPED (disabled in config)")
+        
+        # Check if any extraction was performed
+        if not extract_inbox and not extract_signed:
+            log_console("❌ ERROR: No extraction sources enabled! Please check your company configuration.")
+            log_console("💡 Available extraction sources: ['inbox'], ['signed'], or ['inbox', 'signed']")
+            return
         
         # Combine document types
         all_doc_types = {**inbox_doc_types, **signed_doc_types}
         all_doc_ids = list(dict.fromkeys(inbox_doc_ids + signed_doc_ids))
+        
+        if len(all_doc_ids) == 0:
+            log_console("⚠️ No documents found for extraction. Check date range and extraction sources.")
+            log_console(f"📊 Summary: Inbox docs: {len(inbox_doc_ids)}, Signed docs: {len(signed_doc_ids)}")
+            return
+            
         log_console(f"📝 Extracting NPI from {len(all_doc_ids)} documents...")
+        log_console(f"📊 Sources: Inbox: {len(inbox_doc_ids)} docs, Signed: {len(signed_doc_ids)} docs")
         
         records = []
         filtered_records = []
