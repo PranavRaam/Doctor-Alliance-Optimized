@@ -12,9 +12,14 @@ easyocr
 numpy
 pandas
 
-# Web Scraping
+# Web Scraping and Automation
 selenium
 requests
+aiohttp
+aiofiles
+pyautogui
+chromedriver_autoinstaller
+webdriver-manager
 
 # Database
 sqlite3
@@ -23,6 +28,11 @@ sqlite3
 python-dotenv
 openpyxl
 xlsxwriter
+python-dateutil
+beautifulsoup4
+lxml
+html5lib
+fuzzywuzzy
 
 # Logging and Configuration
 logging
@@ -43,11 +53,10 @@ azure-ai-formrecognizer
 azure-ai-textanalytics
 azure-cognitiveservices-vision-computervision
 
-# Additional Utilities
-python-dateutil
-beautifulsoup4
-lxml
-html5lib
+# LangChain and LLM Integration
+langchain
+langchain-community
+langchain-openai
 
 # Optional: For better performance
 # torch  # Uncomment if using GPU for EasyOCR 

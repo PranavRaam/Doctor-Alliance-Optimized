@@ -478,24 +478,48 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
     try:
         log_console("Navigating to Signed tab...")
         
-        # Try direct navigation to signed page first
-        try:
-            driver.get("https://live.doctoralliance.com/all/Documents/Signed")
-            # Wait only for critical elements, not full page load
-            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-            time.sleep(0.5)  # Minimal wait
-            log_console("✅ Direct navigation to signed page successful")
-        except Exception as e:
-            log_console(f"⚠️ Direct navigation failed, trying click method: {e}")
-            signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]")
-            signed_link.click()
-            time.sleep(0.5)  # Minimal wait
+        # Try direct navigation to signed page first with retry mechanism
+        navigation_successful = False
+        for attempt in range(3):  # Try up to 3 times
+            try:
+                log_console(f"📄 Navigation attempt {attempt + 1}/3...")
+                driver.get("https://live.doctoralliance.com/all/Documents/Signed")
+                # Wait for critical elements with increased timeout
+                WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                # Wait for the page to be interactive
+                WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+                time.sleep(1)  # Allow page to fully load
+                log_console("✅ Direct navigation to signed page successful")
+                navigation_successful = True
+                break
+            except Exception as e:
+                log_console(f"⚠️ Direct navigation attempt {attempt + 1} failed: {e}")
+                if attempt < 2:  # Not the last attempt
+                    time.sleep(2)  # Wait before retry
+                    continue
+                else:
+                    log_console("⚠️ Direct navigation failed all attempts, trying click method...")
+                    try:
+                        signed_link = wait_and_find_element(driver, By.XPATH, "//a[contains(@href, '/Documents/Signed')]", timeout=10)
+                        signed_link.click()
+                        time.sleep(2)  # Wait for navigation
+                        WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+                        navigation_successful = True
+                        log_console("✅ Click navigation to signed page successful")
+                    except Exception as click_error:
+                        log_console(f"❌ Click navigation also failed: {click_error}")
         
-        # Wait only for essential content
+        if not navigation_successful:
+            log_console("❌ All navigation methods failed for signed page")
+            return [], {}
+        
+        # Additional wait for page stability
         try:
-            WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+            WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+            log_console("✅ Date picker confirmed available")
         except:
-            time.sleep(1)  # Fallback if date picker not immediately available
+            log_console("⚠️ Date picker not found, page may not be fully loaded")
+            time.sleep(2)  # Extended fallback wait
         
         # Click the "All" button to show all signed documents (not just "Signed & Unfiled")
         log_console("🔘 Clicking 'All' button to show all signed documents...")
@@ -513,88 +537,199 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             ]
             
             all_button = None
-            for selector in all_button_selectors:
-                try:
-                    all_button = driver.find_element(By.XPATH, selector)
-                    log_console(f"✅ Found 'All' button with selector: {selector}")
+            # Try to find All button with retry mechanism
+            for attempt in range(3):
+                for selector in all_button_selectors:
+                    try:
+                        all_button = WebDriverWait(driver, 2).until(
+                            EC.presence_of_element_located((By.XPATH, selector))
+                        )
+                        log_console(f"✅ Found 'All' button with selector: {selector}")
+                        break
+                    except:
+                        continue
+                
+                if all_button:
                     break
-                except:
-                    continue
+                elif attempt < 2:
+                    log_console(f"⚠️ All button not found on attempt {attempt + 1}, retrying...")
+                    time.sleep(1)
+                    # Try refreshing the current view
+                    try:
+                        driver.refresh()
+                        WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.ID, "StartDatePicker")))
+                        time.sleep(1)
+                    except:
+                        pass
             
             if all_button:
-                # Check if it's already active
-                button_class = all_button.get_attribute("class")
-                if "active" not in button_class.lower():
-                    log_console("🔘 'All' button found but not active, clicking...")
+                # Check if it's already active with retry
+                button_clicked = False
+                for click_attempt in range(3):
                     try:
-                        driver.execute_script("arguments[0].click();", all_button)
-                        time.sleep(0.3)  # Minimal wait for click registration
-                        log_console("✅ Clicked 'All' button with JavaScript")
-                    except:
-                        all_button.click()
-                        time.sleep(0.3)  # Minimal wait for click registration
-                        log_console("✅ Clicked 'All' button with regular click")
-                else:
-                    log_console("✅ 'All' button is already active")
+                        button_class = all_button.get_attribute("class") or ""
+                        if "active" not in button_class.lower():
+                            log_console(f"🔘 'All' button found but not active, clicking... (attempt {click_attempt + 1})")
+                            
+                            # Try multiple click methods
+                            if click_attempt == 0:
+                                # JavaScript click first
+                                driver.execute_script("arguments[0].scrollIntoView(true);", all_button)
+                                time.sleep(0.2)
+                                driver.execute_script("arguments[0].click();", all_button)
+                                log_console("✅ Clicked 'All' button with JavaScript")
+                            elif click_attempt == 1:
+                                # Regular click with scroll
+                                driver.execute_script("arguments[0].scrollIntoView(true);", all_button)
+                                time.sleep(0.2)
+                                all_button.click()
+                                log_console("✅ Clicked 'All' button with regular click")
+                            else:
+                                # Force click with focus
+                                driver.execute_script("arguments[0].focus(); arguments[0].click();", all_button)
+                                log_console("✅ Clicked 'All' button with focus+click")
+                            
+                            time.sleep(1)  # Wait for click to register
+                            
+                            # Verify the click worked
+                            try:
+                                updated_class = all_button.get_attribute("class") or ""
+                                if "active" in updated_class.lower():
+                                    log_console("✅ 'All' button successfully activated")
+                                    button_clicked = True
+                                    break
+                                else:
+                                    log_console("⚠️ 'All' button click may not have registered, retrying...")
+                            except:
+                                # Button might have changed after click, try to find it again
+                                time.sleep(1)
+                                break
+                        else:
+                            log_console("✅ 'All' button is already active")
+                            button_clicked = True
+                            break
+                    except Exception as click_error:
+                        log_console(f"⚠️ Click attempt {click_attempt + 1} failed: {click_error}")
+                        time.sleep(0.5)
+                        # Try to find the button again
+                        for selector in all_button_selectors:
+                            try:
+                                all_button = driver.find_element(By.XPATH, selector)
+                                break
+                            except:
+                                continue
+                
+                if not button_clicked:
+                    log_console("⚠️ Failed to activate 'All' button after multiple attempts")
             else:
-                log_console("⚠️ Could not find 'All' button, continuing with current view")
+                log_console("⚠️ Could not find 'All' button after multiple attempts, continuing with current view")
                 
         except Exception as e:
             log_console(f"⚠️ Error with 'All' button: {e}")
             # Continue anyway, might already be on "All" view
         
-        # Apply date filters with better error handling
+        # Apply date filters with better error handling and retry
         log_console("📅 Applying date filters...")
-        try:
-            start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=5)  # Reduced from 10 to 5 seconds
-            start_date_input.clear()
-            time.sleep(0.1)  # Ultra minimal wait
-            start_date_input.send_keys(start_date)
-            log_console(f"✅ Start date set to: {start_date}")
-            
-            end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=3)  # Even faster timeout
-            end_date_input.clear()
-            time.sleep(0.1)  # Ultra minimal wait
-            if not end_date:
-                end_date = datetime.now().strftime("%m/%d/%Y")
-            end_date_input.send_keys(end_date)
-            log_console(f"✅ End date set to: {end_date}")
-            
-        except Exception as e:
-            log_console(f"❌ Error setting date filters: {e}")
+        date_filters_applied = False
+        for date_attempt in range(3):
+            try:
+                log_console(f"📅 Date filter attempt {date_attempt + 1}/3...")
+                
+                # Wait for and clear start date
+                start_date_input = wait_and_find_element(driver, By.ID, "StartDatePicker", timeout=8)
+                driver.execute_script("arguments[0].scrollIntoView(true);", start_date_input)
+                time.sleep(0.3)
+                start_date_input.clear()
+                time.sleep(0.2)
+                start_date_input.send_keys(start_date)
+                log_console(f"✅ Start date set to: {start_date}")
+                
+                # Wait for and clear end date
+                end_date_input = wait_and_find_element(driver, By.ID, "EndDatePicker", timeout=5)
+                driver.execute_script("arguments[0].scrollIntoView(true);", end_date_input)
+                time.sleep(0.3)
+                end_date_input.clear()
+                time.sleep(0.2)
+                if not end_date:
+                    end_date = datetime.now().strftime("%m/%d/%Y")
+                end_date_input.send_keys(end_date)
+                log_console(f"✅ End date set to: {end_date}")
+                
+                # Verify the dates were set correctly
+                start_value = start_date_input.get_attribute("value")
+                end_value = end_date_input.get_attribute("value")
+                if start_value and end_value:
+                    log_console(f"✅ Date filters verified - Start: {start_value}, End: {end_value}")
+                    date_filters_applied = True
+                    break
+                else:
+                    log_console(f"⚠️ Date filter verification failed - Start: {start_value}, End: {end_value}")
+                    
+            except Exception as e:
+                log_console(f"⚠️ Date filter attempt {date_attempt + 1} failed: {e}")
+                if date_attempt < 2:
+                    time.sleep(1)
+                    continue
+                else:
+                    log_console(f"❌ All date filter attempts failed: {e}")
+                    return [], {}
+        
+        if not date_filters_applied:
+            log_console("❌ Failed to apply date filters after multiple attempts")
             return [], {}
         
-        # Click Go button to apply filters with retry logic
+        # Click Go button to apply filters with enhanced retry logic
         log_console("🔘 Clicking 'Go' button to apply date filters...")
-        try:
-            go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=5)  # Reduced from 10 to 5 seconds
-            
-            # Try multiple click methods
-            click_successful = False
-            for attempt in range(3):
-                try:
-                    if attempt == 0:
-                        driver.execute_script("arguments[0].click();", go_button)
-                        log_console("✅ 'Go' button clicked with JavaScript")
-                    elif attempt == 1:
-                        go_button.click()
-                        log_console("✅ 'Go' button clicked with regular click")
-                    else:
-                        driver.execute_script("arguments[0].focus(); arguments[0].click();", go_button)
-                        log_console("✅ 'Go' button clicked with focus+click")
-                    
-                    click_successful = True
-                    break
-                except Exception as e:
-                    log_console(f"⚠️ Click attempt {attempt+1} failed: {e}")
-                    time.sleep(0.2)  # Ultra minimal wait
-            
-            if not click_successful:
-                log_console("❌ Failed to click 'Go' button after 3 attempts")
-                return [], {}
+        go_button_clicked = False
+        for go_attempt in range(3):
+            try:
+                log_console(f"🔘 Go button attempt {go_attempt + 1}/3...")
+                go_button = wait_and_find_element(driver, By.ID, "btnRefreshGrid", timeout=8)
                 
-        except Exception as e:
-            log_console(f"❌ Error finding/clicking 'Go' button: {e}")
+                # Scroll to button and ensure it's visible
+                driver.execute_script("arguments[0].scrollIntoView(true);", go_button)
+                time.sleep(0.3)
+                
+                # Try multiple click methods
+                click_successful = False
+                for click_method in range(3):
+                    try:
+                        if click_method == 0:
+                            # JavaScript click with scroll
+                            driver.execute_script("arguments[0].scrollIntoView(true); arguments[0].click();", go_button)
+                            log_console("✅ 'Go' button clicked with JavaScript+scroll")
+                        elif click_method == 1:
+                            # Regular click after ensuring visibility
+                            WebDriverWait(driver, 3).until(EC.element_to_be_clickable((By.ID, "btnRefreshGrid")))
+                            go_button.click()
+                            log_console("✅ 'Go' button clicked with regular click")
+                        else:
+                            # Force click with focus
+                            driver.execute_script("arguments[0].focus(); arguments[0].click();", go_button)
+                            log_console("✅ 'Go' button clicked with focus+click")
+                        
+                        # Wait for page to start loading/refreshing
+                        time.sleep(1)
+                        click_successful = True
+                        break
+                    except Exception as e:
+                        log_console(f"⚠️ Click method {click_method+1} failed: {e}")
+                        time.sleep(0.3)
+                
+                if click_successful:
+                    go_button_clicked = True
+                    break
+                else:
+                    log_console(f"⚠️ All click methods failed on attempt {go_attempt + 1}")
+                    
+            except Exception as e:
+                log_console(f"⚠️ Go button attempt {go_attempt + 1} failed: {e}")
+                if go_attempt < 2:
+                    time.sleep(1)
+                    continue
+        
+        if not go_button_clicked:
+            log_console("❌ Failed to click 'Go' button after all attempts")
             return [], {}
         
         # Wait for filtered results with minimal delays
