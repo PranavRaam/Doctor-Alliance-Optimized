@@ -732,45 +732,99 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             log_console("❌ Failed to click 'Go' button after all attempts")
             return [], {}
         
-        # Wait for filtered results with minimal delays
+        # Wait for filtered results with better timing
         log_console("⏳ Waiting for filtered results to load...")
         
-        # Quick check for table content instead of loading indicators
+        # Wait for page to start refreshing/loading
+        time.sleep(2)  # Give time for the filter to trigger page refresh
+        
+        # Wait for table content to load with better detection
         table_loaded = False
-        for wait_attempt in range(3):  # Reduced attempts
+        results_ready = False
+        
+        for wait_attempt in range(10):  # Increased attempts for better reliability
             try:
-                # Look directly for table content
+                log_console(f"🔄 Checking for filtered results... (attempt {wait_attempt + 1}/10)")
+                
+                # Wait for any loading indicators to disappear
+                try:
+                    loading_indicators = driver.find_elements(By.XPATH, "//div[contains(@class, 'loading') or contains(@class, 'spinner')]")
+                    if loading_indicators:
+                        for indicator in loading_indicators:
+                            if indicator.is_displayed():
+                                log_console("⏳ Page still loading...")
+                                time.sleep(1)
+                                continue
+                except:
+                    pass
+                
+                # Look for table content
                 table = driver.find_element(By.XPATH, "//table[contains(@class, 'table')]//tbody")
                 if table:
                     table_loaded = True
-                    break
-            except:
-                time.sleep(1)  # Short wait between attempts
+                    
+                    # Check if we have actual data rows or just "no records" message
+                    rows = table.find_elements(By.TAG_NAME, "tr")
+                    if len(rows) > 0:
+                        # Check if it's the "no records" row
+                        first_row = rows[0]
+                        row_text = first_row.text.lower()
+                        if "no matching records" in row_text or "no records found" in row_text:
+                            log_console("❌ No Signed Orders found in the specified date range")
+                            return [], {}
+                        else:
+                            log_console(f"✅ Found {len(rows)} rows in results table")
+                            results_ready = True
+                            break
+                    else:
+                        log_console("⏳ Table found but no rows yet...")
+                        
+            except Exception as e:
+                log_console(f"⏳ Still waiting for results... ({e})")
+                time.sleep(2)  # Longer wait between attempts
                 continue
+                
+            if not results_ready:
+                time.sleep(1)  # Wait before next check
         
         if not table_loaded:
-            time.sleep(2)  # Final fallback wait if table not detected
+            log_console("⚠️ Could not detect table loading, proceeding anyway...")
+            time.sleep(3)  # Extended fallback wait
         
-        # Check for "No matching records found" with better selector
+        if not results_ready and table_loaded:
+            log_console("⚠️ Table loaded but results status unclear, proceeding with extraction...")
+        
+        # Additional debugging - let's see what's actually on the page
         try:
-            no_records_selectors = [
-                "//td[@colspan='11' and contains(text(), 'No matching records found')]",
-                "//td[contains(text(), 'No matching records found')]",
-                "//div[contains(text(), 'No matching records found')]",
-                "//span[contains(text(), 'No matching records')]"
-            ]
+            log_console("🔍 Debug: Checking page content...")
             
-            for selector in no_records_selectors:
-                try:
-                    no_records_element = driver.find_element(By.XPATH, selector)
-                    if no_records_element.is_displayed():
-                        log_console("❌ No Signed Orders found in the specified date range")
-                        return [], {}
-                except:
-                    continue
-                    
-        except Exception:
-            pass
+            # Check current URL
+            current_url = driver.current_url
+            log_console(f"🔍 Debug: Current URL: {current_url}")
+            
+            # Check for any table content
+            tables = driver.find_elements(By.TAG_NAME, "table")
+            log_console(f"🔍 Debug: Found {len(tables)} tables on page")
+            
+            if tables:
+                for i, table in enumerate(tables):
+                    try:
+                        rows = table.find_elements(By.TAG_NAME, "tr")
+                        log_console(f"🔍 Debug: Table {i+1} has {len(rows)} rows")
+                        if len(rows) > 0:
+                            # Check first few rows for content
+                            for j, row in enumerate(rows[:3]):
+                                cells = row.find_elements(By.TAG_NAME, "td")
+                                if cells:
+                                    log_console(f"🔍 Debug: Row {j+1} has {len(cells)} cells")
+                                    if j == 0:  # Log first row content
+                                        row_text = row.text.strip()[:100]  # First 100 chars
+                                        log_console(f"🔍 Debug: First row text: {row_text}")
+                    except Exception as e:
+                        log_console(f"🔍 Debug: Error examining table {i+1}: {e}")
+            
+        except Exception as e:
+            log_console(f"🔍 Debug: Error during page content check: {e}")
         
         log_console("✅ Date filters applied successfully, proceeding with extraction...")
             
@@ -784,9 +838,36 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             new_docs_on_page = 0  # Count new documents found on this page
             
             try:
-                WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
-                time.sleep(2)
-                table_rows = driver.find_elements(By.CSS_SELECTOR, "#signed-docs-grid tbody tr")
+                # Try multiple selectors for the signed docs table
+                table_selectors = [
+                    "#signed-docs-grid tbody tr",
+                    "table tbody tr",
+                    "//table//tbody//tr",
+                    "//table[contains(@class, 'table')]//tbody//tr"
+                ]
+                
+                table_rows = []
+                for selector in table_selectors:
+                    try:
+                        if selector.startswith("//"):
+                            # XPath selector
+                            WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.XPATH, selector)))
+                            table_rows = driver.find_elements(By.XPATH, selector)
+                        else:
+                            # CSS selector
+                            WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.CSS_SELECTOR, selector)))
+                            table_rows = driver.find_elements(By.CSS_SELECTOR, selector)
+                        
+                        if table_rows:
+                            log_console(f"✅ Found table using selector: {selector}")
+                            break
+                    except:
+                        continue
+                
+                if not table_rows:
+                    log_console("⚠️ Could not find table with any selector, trying generic approach...")
+                    time.sleep(3)
+                    table_rows = driver.find_elements(By.XPATH, "//tr[td]")  # Any row with td elements
                 
                 # Add null check for table_rows
                 if table_rows is None:
