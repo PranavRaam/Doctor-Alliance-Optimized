@@ -13,7 +13,7 @@ def readConfig():
 API_BASE = "https://api.doctoralliance.com/document/getfile?docId.id="
 AUTH_HEADER = {
     "Accept": "application/json",
-    "Authorization": "Bearer zbs0Sj0CL-7JGE39N60iVdG-w7ZVNOrJHCjYrq8DA4uatgxI0gD0_niGYl72ynOsxkA72V4lQHWJ1lrOPWvmRZDXv0AevDIgKiPjICG_wdsk1qIHz8n_b2Fz7rIQqwCexi8sMz2NeoUxXyFOibxIm2HLUNZGoAOGInowvfiVErnF4RFHjUEdU1DrK8KREo67B7jbhQ91EEkxyZAFSSeU-AA0YPUlbJAIjgeq6rrzzjwyqKAvTmkC3T0Hc0Q_jCVMcQuNm2nZQdxj1nOBkq8V2Q"
+    "Authorization": "Bearer mlZUpFXHI8n35CZ7Coi5bjnAAg1czkvQpx0ofQ7rqqM3WPFQd5hgOOAfluxwlAYMCBGvNjeHrjiNcMDuKtheZYX7KUG_e4pT9k7cLJxD5YVdteKMp2tkwl402UGdPAV1Eqw05E0Vs19SLQYv-LLJ3jMELRUu5b5LNQYLkWWzaPsIRonDu1IFm5ulvXHzSmmQIbc7vnr17pq46VnXPoF5X1HhnqTyopYqFkl-3rEIlP-0JaWAJvMOF2QF77kztQVKwCkjoWmpNjxNv-bjgLm0vw"
 }
 
 api_key = "EVtCfEbXd2pvVrkOaByfss3HBMJy9x0FvwXdFhCmenum0RLvHCZNJQQJ99BDACYeBjFXJ3w3AAABACOGe7zr"
@@ -49,6 +49,15 @@ DOWNLOAD_CONFIG = {
     "retry_backoff": 2,              # Shorter backoff
     "connection_pool_size": 25,      # Increased pool size
     "use_async": True,
+}
+
+# Supreme sheet (Excel builder) bulk processing configuration
+SUPREME_SHEET_CONFIG = {
+    "max_concurrent_requests": 10,
+    "batch_size": 50,
+    "request_timeout": 30,
+    "max_retries": 3,
+    "retry_backoff": 1.5
 }
 
 # Optimized Text Extraction Configuration for VM performance
@@ -164,6 +173,14 @@ MULTIPLE_COMPANIES = [
 # If MULTIPLE_COMPANIES is empty, use the active company
 # If MULTIPLE_COMPANIES has entries, process all of them
 PROCESS_MULTIPLE_COMPANIES = len(MULTIPLE_COMPANIES) > 0
+
+# Selenium extractor limits for bulk page handling
+EXTRACTOR_LIMITS = {
+    "signed_max_pages": 200,
+    "inbox_max_pages": 200,
+    "max_consecutive_no_new": 8,
+    "npi_batch_size": 50
+}
 
 # ===========================================
 # CONFIGURATION EXAMPLES

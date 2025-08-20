@@ -14,6 +14,7 @@ import threading
 from queue import Queue
 import asyncio
 import aiohttp
+from config import EXTRACTOR_LIMITS
 
 def log_console(msg):
     print(msg)
@@ -48,9 +49,10 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
     seen_ids = extract_doc_ids_from_inbox.shared_seen_ids
     processed_urls = set()
     consecutive_no_new_docs = 0
-    max_consecutive_no_new = 3
+    max_consecutive_no_new = EXTRACTOR_LIMITS.get("max_consecutive_no_new", 3)
+    max_pages = EXTRACTOR_LIMITS.get("inbox_max_pages", 200)
     
-    while True:
+    while page <= max_pages:
         current_url = driver.current_url
         log_console(f"📄 Inbox page {page} (Found {len(doc_ids)} total docs) - URL: {current_url}")
         
@@ -829,9 +831,9 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         log_console("✅ Date filters applied successfully, proceeding with extraction...")
             
         page = 1
-        max_pages = 100  # Safety limit to prevent infinite loops
+        max_pages = EXTRACTOR_LIMITS.get("signed_max_pages", 200)  # Safety limit configurable
         consecutive_no_new_docs = 0
-        max_consecutive_no_new = 3  # Stop after 3 consecutive pages with no new documents
+        max_consecutive_no_new = EXTRACTOR_LIMITS.get("max_consecutive_no_new", 3)
         
         while page <= max_pages:
             log_console(f"📄 Signed docs page {page}")
@@ -1049,7 +1051,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
             except Exception:
                 retry_doc_ids = []
                 page = 1
-                while page <= 3:
+                while page <= EXTRACTOR_LIMITS.get("signed_max_pages", 200):
                     try:
                         WebDriverWait(driver, 15).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#signed-docs-grid tbody tr")))
                         time.sleep(2)
@@ -1444,7 +1446,7 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
         filtered_records = []
         
         # Optimized batch processing with concurrent execution
-        batch_size = 50  # Increased batch size for better performance
+        batch_size = EXTRACTOR_LIMITS.get("npi_batch_size", 50)
         total_batches = (len(all_doc_ids) + batch_size - 1) // batch_size
         
         log_console(f"🚀 Processing {len(all_doc_ids)} documents in {total_batches} batches of {batch_size}")

@@ -12,12 +12,11 @@ from typing import Dict, List, Tuple, Optional
 import time
 from functools import lru_cache
 from performance_monitor import start_monitoring, update_progress, stop_monitoring
+from config import AUTH_HEADER as CONFIG_AUTH_HEADER, SUPREME_SHEET_CONFIG, COMPANIES, get_companies_to_process
 
 API_BASE = "https://api.doctoralliance.com/document/getfile?docId.id="
-AUTH_HEADER = {
-    "Accept": "application/json",
-    "Authorization": "Bearer zbs0Sj0CL-7JGE39N60iVdG-w7ZVNOrJHCjYrq8DA4uatgxI0gD0_niGYl72ynOsxkA72V4lQHWJ1lrOPWvmRZDXv0AevDIgKiPjICG_wdsk1qIHz8n_b2Fz7rIQqwCexi8sMz2NeoUxXyFOibxIm2HLUNZGoAOGInowvfiVErnF4RFHjUEdU1DrK8KREo67B7jbhQ91EEkxyZAFSSeU-AA0YPUlbJAIjgeq6rrzzjwyqKAvTmkC3T0Hc0Q_jCVMcQuNm2nZQdxj1nOBkq8V2Q"
-}
+# Use centralized config auth header
+AUTH_HEADER = CONFIG_AUTH_HEADER
 
 # PATIENT_API will be set dynamically based on company configuration
 PATIENT_API = None
@@ -29,9 +28,12 @@ PATIENT_CACHE = {}
 ENTITY_CACHE = {}
 GENDER_CACHE = {}
 
-# Performance settings
-MAX_CONCURRENT_REQUESTS = 10
-BATCH_SIZE = 50
+# Performance settings (configurable)
+MAX_CONCURRENT_REQUESTS = SUPREME_SHEET_CONFIG.get("max_concurrent_requests", 10)
+BATCH_SIZE = SUPREME_SHEET_CONFIG.get("batch_size", 50)
+REQUEST_TIMEOUT = SUPREME_SHEET_CONFIG.get("request_timeout", 30)
+SUPREME_MAX_RETRIES = SUPREME_SHEET_CONFIG.get("max_retries", 3)
+SUPREME_RETRY_BACKOFF = SUPREME_SHEET_CONFIG.get("retry_backoff", 1.5)
 
 # Performance optimization: Global caches
 DOC_API_CACHE = {}
@@ -39,9 +41,9 @@ PATIENT_CACHE = {}
 ENTITY_CACHE = {}
 GENDER_CACHE = {}
 
-# Performance settings
-MAX_CONCURRENT_REQUESTS = 10
-BATCH_SIZE = 50
+# Performance settings (duplicate guard)
+MAX_CONCURRENT_REQUESTS = SUPREME_SHEET_CONFIG.get("max_concurrent_requests", MAX_CONCURRENT_REQUESTS)
+BATCH_SIZE = SUPREME_SHEET_CONFIG.get("batch_size", BATCH_SIZE)
 
 def clean_doc_id(val):
     if pd.isna(val) or val is None:
@@ -65,28 +67,39 @@ def try_date(dtstr):
         return dtstr[:10]
 
 async def get_order_doc_api_async(session: aiohttp.ClientSession, doc_id: str) -> Dict:
-    """Async version of get_order_doc_api with caching."""
+    """Async version of get_order_doc_api with caching and retries."""
     if doc_id in DOC_API_CACHE:
         return DOC_API_CACHE[doc_id]
     
     url = f"{API_BASE}{doc_id}"
-    try:
-        async with session.get(url, headers=AUTH_HEADER, timeout=aiohttp.ClientTimeout(total=20)) as r:
-            data = await r.json()
-            if not data.get("isSuccess"):
-                print(f"  [DOC_API] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}. Raw: {data}")
-                result = {}
+    last_error = None
+    for attempt in range(SUPREME_MAX_RETRIES):
+        try:
+            async with session.get(url, headers=AUTH_HEADER) as r:
+                if r.status in (429,) or r.status >= 500:
+                    last_error = f"HTTP {r.status}"
+                    raise Exception(last_error)
+                data = await r.json()
+                if not data.get("isSuccess"):
+                    print(f"  [DOC_API] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}. Raw: {data}")
+                    result = {}
+                else:
+                    value = data.get("value", {})
+                    print(f"  [DOC_API] Success for doc_id={doc_id}. Type: {value.get('documentType', '')}, PatientName: {value.get('patientName', '')}")
+                    result = value
+                DOC_API_CACHE[doc_id] = result
+                return result
+        except Exception as e:
+            last_error = e
+            if attempt < SUPREME_MAX_RETRIES - 1:
+                backoff = SUPREME_RETRY_BACKOFF * (2 ** attempt)
+                await asyncio.sleep(backoff)
+                continue
             else:
-                value = data.get("value", {})
-                print(f"  [DOC_API] Success for doc_id={doc_id}. Type: {value.get('documentType', '')}, PatientName: {value.get('patientName', '')}")
-                result = value
-            DOC_API_CACHE[doc_id] = result
-            return result
-    except Exception as e:
-        print(f"  [DOC_API] Exception for doc_id={doc_id}: {e}")
-        result = {}
-        DOC_API_CACHE[doc_id] = result
-        return result
+                print(f"  [DOC_API] Exception for doc_id={doc_id} after {SUPREME_MAX_RETRIES} attempts: {last_error}")
+                result = {}
+                DOC_API_CACHE[doc_id] = result
+                return result
 
 def get_order_doc_api(doc_id):
     """Synchronous fallback for get_order_doc_api."""
@@ -197,8 +210,48 @@ def get_valid_icds(icd_codes_validated):
     return out
 
 def extract_pgcompanyid_from_url(url):
+    if not url or not isinstance(url, str):
+        return ""
     m = re.search(r"/company/pg/([a-f0-9\-]+)", url)
     return m.group(1) if m else ""
+
+def resolve_pg_company_id(care_provider_name: str, default_pg_from_patient_api: str) -> str:
+    """Resolve PG company ID for a row using care provider name against config, with fallbacks."""
+    # 1) Try config companies by direct or fuzzy name match
+    try:
+        if care_provider_name and isinstance(care_provider_name, str):
+            name_norm = care_provider_name.strip().lower()
+            # Exact/contains match first
+            for key, cfg in COMPANIES.items():
+                cfg_name = (cfg.get('name') or '').strip().lower()
+                if not cfg_name:
+                    continue
+                if cfg_name == name_norm or cfg_name in name_norm or name_norm in cfg_name:
+                    return cfg.get('pg_company_id', '') or ''
+            # Fuzzy match fallback
+            best_score = 0
+            best_pg = ''
+            for key, cfg in COMPANIES.items():
+                cfg_name = (cfg.get('name') or '').strip()
+                if not cfg_name:
+                    continue
+                score = fuzz.token_set_ratio(cfg_name.lower(), name_norm)
+                if score > best_score:
+                    best_score = score
+                    best_pg = cfg.get('pg_company_id', '') or ''
+            if best_score >= 85 and best_pg:
+                return best_pg
+    except Exception:
+        pass
+    # 2) If running single-company mode, it's safe to fallback to the active company's PG (from PATIENT_API)
+    try:
+        companies_to_process = get_companies_to_process()
+        if isinstance(companies_to_process, list) and len(companies_to_process) == 1:
+            return default_pg_from_patient_api or ""
+    except Exception:
+        pass
+    # 3) Otherwise, leave blank to avoid inserting a possibly incorrect default
+    return ""
 
 @lru_cache(maxsize=1000)
 def get_companyid_by_careprovider_name(care_provider_name):
@@ -471,6 +524,10 @@ def process_row_data(row, doc_api, patients, mrn_map, dabackid_map):
         "PDF_Size_KB": len(doc_api.get("documentBuffer", "")) // 1024 if doc_api.get("documentBuffer") else 0
     }
 
+    # Ensure Pgcompanyid is populated. Prefer extracting from PATIENT_API, else resolve via care provider.
+    default_pg_from_patient_api = extract_pgcompanyid_from_url(PATIENT_API)
+    out_row["Pgcompanyid"] = resolve_pg_company_id(care_provider_name, default_pg_from_patient_api)
+
     patient, found = match_patient_fast(
         {
             "mrn": mrn,
@@ -487,7 +544,7 @@ def process_row_data(row, doc_api, patients, mrn_map, dabackid_map):
         agency = patient.get("agencyInfo", {})
         out_row["PatientExist"] = True
         out_row["patientid"] = patient.get("id", "")
-        out_row["Pgcompanyid"] = extract_pgcompanyid_from_url(PATIENT_API)
+        # Pgcompanyid already set above; keep it. If companyid is empty and agency has one, prefer that.
         if not companyid:
             companyid = agency.get("companyId", "")
         out_row["companyId"] = companyid
@@ -508,7 +565,7 @@ def process_row_data(row, doc_api, patients, mrn_map, dabackid_map):
     else:
         out_row["PatientExist"] = False
         out_row["patientid"] = ""
-        out_row["Pgcompanyid"] = extract_pgcompanyid_from_url(PATIENT_API)
+        # For not found, still keep best-effort Pgcompanyid resolved above
         out_row["companyId"] = companyid
         print(f"  [OUTPUT] Patient NOT found for doc_id={doc_id}")
 
@@ -578,7 +635,7 @@ async def main_async():
         ssl=False
     )
     
-    timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_read=20)
+    timeout = aiohttp.ClientTimeout(total=REQUEST_TIMEOUT, connect=min(10, REQUEST_TIMEOUT), sock_read=min(20, REQUEST_TIMEOUT))
     
     async with aiohttp.ClientSession(
         connector=connector,
