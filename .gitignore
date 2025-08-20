@@ -259,4 +259,4 @@ tmp_*
 
 # Keep requirements file if exists
 !requirements.txt
-!requirements*.txt 
+!requirements*.txt api_test_results_*.json
