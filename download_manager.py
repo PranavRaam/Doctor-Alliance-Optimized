@@ -10,7 +10,7 @@ import threading
 from typing import List, Dict, Any, Tuple, Optional
 import requests
 
-from config import DOWNLOAD_CONFIG, API_BASE, AUTH_HEADER
+from config import DOWNLOAD_CONFIG, API_BASE, get_auth_header
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class AccuracyFocusedDownloadManager:
         async with aiohttp.ClientSession(
             connector=connector,
             timeout=timeout,
-            headers=AUTH_HEADER,
+            headers=get_auth_header(),
             trust_env=True
         ) as session:
             
@@ -351,7 +351,7 @@ def download_pdf_from_api(doc_id: str, save_path: str) -> bool:
     url = f"{API_BASE}{doc_id}"
     
     try:
-        response = requests.get(url, headers=AUTH_HEADER, timeout=30, verify=False)  # Disable SSL verification
+        response = requests.get(url, headers=get_auth_header(), timeout=30, verify=False)  # Disable SSL verification
         if response.status_code == 200:
             result = response.json()
             

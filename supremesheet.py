@@ -12,11 +12,25 @@ from typing import Dict, List, Tuple, Optional
 import time
 from functools import lru_cache
 from performance_monitor import start_monitoring, update_progress, stop_monitoring
-from config import AUTH_HEADER as CONFIG_AUTH_HEADER, SUPREME_SHEET_CONFIG, COMPANIES, get_companies_to_process
+import signal
+
+# Global stop flag for graceful Ctrl+C handling
+STOP_REQUESTED = False
+
+def _sigint_handler(signum, frame):
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+    print("\n[CTRL-C] Stop requested. Finishing current tasks and shutting down gracefully...")
+
+try:
+    signal.signal(signal.SIGINT, _sigint_handler)
+except Exception:
+    pass
+from config import AUTH_HEADER as CONFIG_AUTH_HEADER, SUPREME_SHEET_CONFIG, COMPANIES, get_companies_to_process, get_auth_header, authorized_get
 
 API_BASE = "https://api.doctoralliance.com/document/getfile?docId.id="
-# Use centralized config auth header
-AUTH_HEADER = CONFIG_AUTH_HEADER
+# Use centralized auth header getter (supports optional refresh)
+AUTH_HEADER = get_auth_header()
 
 # PATIENT_API will be set dynamically based on company configuration
 PATIENT_API = None
@@ -75,7 +89,7 @@ async def get_order_doc_api_async(session: aiohttp.ClientSession, doc_id: str) -
     last_error = None
     for attempt in range(SUPREME_MAX_RETRIES):
         try:
-            async with session.get(url, headers=AUTH_HEADER) as r:
+            async with session.get(url, headers=get_auth_header()) as r:
                 if r.status in (429,) or r.status >= 500:
                     last_error = f"HTTP {r.status}"
                     raise Exception(last_error)
@@ -108,7 +122,7 @@ def get_order_doc_api(doc_id):
     
     url = f"{API_BASE}{doc_id}"
     try:
-        r = requests.get(url, headers=AUTH_HEADER, timeout=20)
+        r = requests.get(url, headers=get_auth_header(), timeout=20)
         data = r.json()
         if not data.get("isSuccess"):
             print(f"  [DOC_API] Failed for doc_id={doc_id}. isSuccess={data.get('isSuccess')}. Raw: {data}")
@@ -425,6 +439,8 @@ async def process_batch_async(session: aiohttp.ClientSession, batch_rows, patien
     """Process a batch of rows asynchronously."""
     tasks = []
     for row in batch_rows:
+        if STOP_REQUESTED:
+            break
         task = process_single_row_async(session, row, patients, mrn_map, dabackid_map)
         tasks.append(task)
     
@@ -645,6 +661,9 @@ async def main_async():
     ) as session:
         
         for i in range(0, total_rows, BATCH_SIZE):
+            if STOP_REQUESTED:
+                print("[STOP] Ctrl+C detected, stopping before next batch...")
+                break
             batch_end = min(i + BATCH_SIZE, total_rows)
             batch_df = df.iloc[i:batch_end]
             print(f"\n[INFO] Processing batch {i//BATCH_SIZE + 1}/{(total_rows + BATCH_SIZE - 1)//BATCH_SIZE} ({len(batch_df)} rows)")

@@ -16,6 +16,81 @@ AUTH_HEADER = {
     "Authorization": "Bearer mlZUpFXHI8n35CZ7Coi5bjnAAg1czkvQpx0ofQ7rqqM3WPFQd5hgOOAfluxwlAYMCBGvNjeHrjiNcMDuKtheZYX7KUG_e4pT9k7cLJxD5YVdteKMp2tkwl402UGdPAV1Eqw05E0Vs19SLQYv-LLJ3jMELRUu5b5LNQYLkWWzaPsIRonDu1IFm5ulvXHzSmmQIbc7vnr17pq46VnXPoF5X1HhnqTyopYqFkl-3rEIlP-0JaWAJvMOF2QF77kztQVKwCkjoWmpNjxNv-bjgLm0vw"
 }
 
+# Optional dynamic token refresh for DA API (token may expire every ~20-28 days)
+DA_API_TOKEN_URL = "https://api.doctoralliance.com/v1/oauth/token"
+DA_API_USERNAME = "ihelperph724"   # filled from provided curl
+DA_API_PASSWORD = "helper435"      # filled from provided curl
+DA_OAUTH_BEARER = ""   # optional: bearer required by gateway for token endpoint
+
+_DA_TOKEN_CACHE = {
+    "token": None,
+    "fetched_at": None
+}
+DA_TOKEN_TTL_HOURS = 24 * 20  # refresh roughly every 20 days by default
+
+def refresh_da_api_token():
+    """Refresh DA API bearer token using utils.get_access_token if configured.
+    Falls back to static AUTH_HEADER if not configured or on error.
+    """
+    global _DA_TOKEN_CACHE
+    try:
+        import requests
+        if not DA_API_TOKEN_URL or not DA_API_USERNAME or not DA_API_PASSWORD:
+            return False
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        if DA_OAUTH_BEARER:
+            headers["Authorization"] = f"Bearer {DA_OAUTH_BEARER}"
+        data = {
+            "grant_type": "password",
+            "username": DA_API_USERNAME,
+            "password": DA_API_PASSWORD,
+        }
+        resp = requests.post(DA_API_TOKEN_URL, headers=headers, data=data, timeout=30)
+        if resp.status_code == 200:
+            json_resp = resp.json()
+            token = json_resp.get("access_token") or json_resp.get("token")
+            if token:
+                _DA_TOKEN_CACHE["token"] = token
+                from datetime import datetime
+                _DA_TOKEN_CACHE["fetched_at"] = datetime.utcnow()
+                return True
+    except Exception as e:
+        # Silent fallback; callers will continue using static AUTH_HEADER
+        pass
+    return False
+
+def get_auth_header():
+    """Return a valid Authorization header, refreshing if necessary when configured.
+    If dynamic token refresh is not configured, returns the static AUTH_HEADER.
+    """
+    try:
+        from datetime import datetime, timedelta
+        token = _DA_TOKEN_CACHE.get("token")
+        fetched_at = _DA_TOKEN_CACHE.get("fetched_at")
+        if token and fetched_at:
+            if datetime.utcnow() - fetched_at < timedelta(hours=DA_TOKEN_TTL_HOURS):
+                return {"Accept": "application/json", "Authorization": f"Bearer {token}"}
+        # Try to refresh if config present
+        if refresh_da_api_token():
+            return {"Accept": "application/json", "Authorization": f"Bearer {_DA_TOKEN_CACHE['token']}"}
+    except Exception:
+        pass
+    # Fallback to static header
+    return AUTH_HEADER
+
+def authorized_get(url, timeout=30, verify=True):
+    """Perform a GET with current auth header; on 401/403, refresh token and retry once."""
+    try:
+        import requests
+        r = requests.get(url, headers=get_auth_header(), timeout=timeout, verify=verify)
+        if r.status_code in (401, 403):
+            if refresh_da_api_token():
+                return requests.get(url, headers=get_auth_header(), timeout=timeout, verify=verify)
+        return r
+    except Exception:
+        import requests as _rq
+        return _rq.get(url, headers=get_auth_header(), timeout=timeout, verify=verify)
+
 api_key = "EVtCfEbXd2pvVrkOaByfss3HBMJy9x0FvwXdFhCmenum0RLvHCZNJQQJ99BDACYeBjFXJ3w3AAABACOGe7zr"
 azure_endpoint = "https://daplatformai.openai.azure.com/"
 deployment_name = "gpt-35-turbo"

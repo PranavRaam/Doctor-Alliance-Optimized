@@ -15,6 +15,20 @@ from queue import Queue
 import asyncio
 import aiohttp
 from config import EXTRACTOR_LIMITS
+import signal
+
+# Global stop flag for graceful Ctrl+C handling
+STOP_REQUESTED = False
+
+def _sigint_handler(signum, frame):
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+    log_console("\n[CTRL-C] Stop requested. Finishing current doc and exiting...")
+
+try:
+    signal.signal(signal.SIGINT, _sigint_handler)
+except Exception:
+    pass
 
 def log_console(msg):
     print(msg)
@@ -52,7 +66,7 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
     max_consecutive_no_new = EXTRACTOR_LIMITS.get("max_consecutive_no_new", 3)
     max_pages = EXTRACTOR_LIMITS.get("inbox_max_pages", 200)
     
-    while page <= max_pages:
+    while page <= max_pages and not STOP_REQUESTED:
         current_url = driver.current_url
         log_console(f"📄 Inbox page {page} (Found {len(doc_ids)} total docs) - URL: {current_url}")
         
@@ -115,6 +129,8 @@ def extract_doc_ids_from_inbox(driver, start_date, end_date=None):
         new_docs_on_page = 0
         
         for row in current_rows:
+            if STOP_REQUESTED:
+                break
             try:
                 cells = row.find_elements(By.TAG_NAME, "td")
                 if len(cells) < 9:
@@ -835,7 +851,7 @@ def extract_doc_ids_from_signed(driver, start_date, end_date=None):
         consecutive_no_new_docs = 0
         max_consecutive_no_new = EXTRACTOR_LIMITS.get("max_consecutive_no_new", 3)
         
-        while page <= max_pages:
+        while page <= max_pages and not STOP_REQUESTED:
             log_console(f"📄 Signed docs page {page}")
             new_docs_on_page = 0  # Count new documents found on this page
             
@@ -1463,6 +1479,8 @@ def run_id_and_npi_extraction(da_url, da_login, da_password, helper_id, start_da
             
             # Process batch sequentially but with optimized settings
             for doc_id in batch_doc_ids:
+                if STOP_REQUESTED:
+                    break
                 npi = ""
                 document_type = all_doc_types.get(doc_id, "")
                 

@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+from config import get_auth_header
 try:
     import fitz  # PyMuPDF for PDF text extraction
 except Exception:
@@ -17,6 +18,18 @@ import tempfile
 import os
 import sys
 import time
+import signal
+STOP_REQUESTED = False
+
+def _sigint_handler(signum, frame):
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+    print("\n[CTRL-C] Stop requested. Saving progress and exiting...")
+
+try:
+    signal.signal(signal.SIGINT, _sigint_handler)
+except Exception:
+    pass
 from typing import Tuple, Optional
 
 # These will be set dynamically based on company configuration
@@ -1223,7 +1236,7 @@ def create_patient(row, company_key=None):
 
 def refill_patient_info(df):
     try:
-        resp = requests.get(PATIENT_API, timeout=30)
+        resp = requests.get(PATIENT_API, headers=get_auth_header(), timeout=30)
         patients = resp.json()
     except Exception as e:
         print(f"  [PATIENT_REFILL] Download error: {e}")
@@ -1918,6 +1931,8 @@ def main():
     created_patients = set()
     # 1. First pass: Create patients for ALL non-excluded document types where PatientExist==False
     for idx, row in df.iterrows():
+        if STOP_REQUESTED:
+            break
         debug_log("PATIENT_PASS1", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
         if (
@@ -1959,10 +1974,14 @@ def main():
 
     # 2. Second pass: Convert OTHER_SIGNABLE to OTHER, and create patients for ALL PatientExist==False rows (if not already created)
     for idx, row in df.iterrows():
+        if STOP_REQUESTED:
+            break
         # Fix document type
         if str(row.get('documentType', '')).upper() == "OTHER_SIGNABLE":
             df.at[idx, 'documentType'] = "OTHER"
     for idx, row in df.iterrows():
+        if STOP_REQUESTED:
+            break
         debug_log("PATIENT_PASS2", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')} DABackOfficeID={row.get('DABackOfficeID')}")
         dabackid = str(row.get('DABackOfficeID', '')).strip()
         if (not row.get('PatientExist', False)) and dabackid not in created_patients:
@@ -2008,6 +2027,8 @@ def main():
     df['PDF_UPLOAD_REMARK'] = ""
     
     for idx, row in df.iterrows():
+        if STOP_REQUESTED:
+            break
         debug_log("ORDER", f"Row={idx} DocID={row.get('Document ID') or row.get('docId')} Name={row.get('patientName') or row.get('patient_name')} PatientExist={row.get('PatientExist')} DocType={row.get('documentType')}")
         if row.get('PatientExist', False):
             try:
@@ -2053,4 +2074,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Attempt to save any partial state gracefully
+        print("\n[CTRL-C] Interrupted by user. Exiting.")
